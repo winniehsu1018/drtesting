@@ -1032,23 +1032,32 @@
     // 取得機台 / 品號清單
     // =========================================================
 
-    function fetchOptions() {
-        fetch(GAS_WEB_APP_URL + "?action=getOptions")
-        .then(res => {
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}`);
-            }
-            return res.json();
-        })
-        .then(data => {
-            allMachines = (data.machines || []).map(m => String(m).trim()).filter(Boolean);
-            allParts = (data.parts || []).map(p => String(p).trim()).filter(Boolean);
-        })
-        .catch(err => {
-            console.error("⚠️ 無法取得選單資料", err);
-        });
-    }
+ function fetchOptions() {
+    fetch(GAS_WEB_APP_URL + "?action=getOptions")
+    .then(res => res.json())
+    .then(data => {
+        const serverVersion = data.version;
+        const localVersion = localStorage.getItem('cached_version');
 
+        allMachines = (data.machines || []).map(m => String(m).trim()).filter(Boolean);
+        allParts = (data.parts || []).map(p => String(p).trim()).filter(Boolean);
+
+        // 如果後端版本跟本地不同，或者本地沒有存，就更新 localStorage
+        if (serverVersion !== localVersion) {
+            localStorage.setItem('cached_machines', JSON.stringify(allMachines));
+            localStorage.setItem('cached_version', serverVersion);
+            console.log("⚡ 機台清單已自動更新至最新版本");
+        }
+    })
+    .catch(err => {
+        console.error("⚠️ 無法取得選單資料，改用本地快取", err);
+        // 若網路斷線，退而求其次讀取舊的 localStorage 確保可以運作
+        const cachedMachines = localStorage.getItem('cached_machines');
+        if (cachedMachines) {
+            allMachines = JSON.parse(cachedMachines);
+        }
+    });
+}
 
     // =========================================================
     // 取得上一筆資料 (已完全移除應有工時帶入)
