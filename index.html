@@ -1,0 +1,2136 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CNC 生產日報回報系統</title>
+
+    <!-- 引入 LINE LIFF SDK -->
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            margin: auto;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+
+        /* 停用狀態的樣式 */
+        input:disabled, select:disabled {
+            background-color: #e9ecef;
+            cursor: not-allowed;
+            color: #6c757d;
+        }
+
+        /* 班別按鈕樣式 */
+        .shift-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .shift-btn {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            border: 2px solid #ccc;
+            background: #f8f9fa;
+            color: #555;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 0;
+        }
+
+        .shift-btn:hover {
+            background: #e2e6ea;
+        }
+
+        .shift-btn.active-day {
+            background: #007bff;
+            color: white;
+            border-color: #0056b3;
+        }
+
+        .shift-btn.active-night {
+            background: #fd7e14;
+            color: white;
+            border-color: #e8590c;
+        }
+
+        .dropdown-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            max-height: 180px;
+            overflow-y: auto;
+            background: white;
+            border: 1px solid #ccc;
+            border-top: none;
+            z-index: 1000;
+            display: none;
+            border-radius: 0 0 5px 5px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .dropdown-item {
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        .dropdown-item:hover,
+        .dropdown-item.active {
+            background-color: #e0e0e0;
+        }
+
+        button[type="submit"], .btn-add {
+            width: 100%;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button[type="submit"]:hover, .btn-add:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+
+        #loading {
+            display: none;
+            text-align: center;
+            color: #007bff;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .time-hint {
+            font-size: 12px;
+            color: #888;
+            margin-top: 3px;
+        }
+
+        #userInfo {
+            font-size: 13px;
+            color: #666;
+            text-align: right;
+            margin-bottom: 15px;
+        }
+
+        .invalid-box {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .invalid-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .invalid-header span {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .auto-hint {
+            font-size: 12px;
+            color: #28a745;
+            margin-top: 3px;
+            font-weight: bold;
+        }
+
+        .machine-hint {
+            font-size: 12px;
+            color: #888;
+            margin-top: 3px;
+        }
+
+        .machine-error {
+            font-size: 12px;
+            color: #dc3545;
+            margin-top: 3px;
+            display: none;
+            font-weight: bold;
+        }
+
+        .btn-add {
+            background: #28a745;
+            width: auto;
+            padding: 6px 14px;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .btn-add:hover {
+            background: #218838;
+        }
+
+        .btn-remove {
+            background: #ff4d4f;
+            color: white;
+            border: none;
+            width: auto;
+            padding: 4px 10px;
+            font-size: 13px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 0;
+            transition: background 0.2s;
+        }
+
+        .btn-remove:hover {
+            background: #d9363e;
+        }
+
+        .request-hint {
+            font-size: 11px;
+            color: #999;
+            text-align: center;
+            margin-top: 5px;
+            display: none;
+        }
+
+        /* 身分驗證畫面樣式 */
+        #loginView {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        #loginView h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        #loginMsg {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 確認對話框樣式 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+        .modal-content h3 {
+            margin-top: 0;
+            color: #333;
+            text-align: center;
+        }
+        .summary-list {
+            font-size: 15px;
+            color: #444;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 5px;
+            border: 1px solid #e9ecef;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .modal-btn {
+            flex: 1;
+            padding: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn-confirm {
+            background: #28a745;
+            color: white;
+        }
+        .btn-confirm:hover {
+            background: #218838;
+        }
+        .btn-cancel {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-cancel:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- 身分驗證等待 / 錯誤畫面 -->
+    <div id="loginView">
+        <h2>CNC 生產日報回報系統</h2>
+        <div class="spinner" id="loginSpinner"></div>
+        <p id="loginMsg">正在驗證您的 LINE 身分權限，請稍候...</p>
+    </div>
+
+    <!-- 原始表單畫面 (預設隱藏，通過驗證後顯示) -->
+    <div id="mainFormView" style="display: none;">
+        <h2>CNC 生產日報回報</h2>
+
+        <div id="userInfo">正在取得 LINE 身分中...</div>
+
+        <form
+            id="reportForm"
+            onkeydown="if(event.key === 'Enter' && event.target.tagName !== 'BUTTON') { event.preventDefault(); }"
+        >
+
+            <!-- 日期 -->
+            <div class="form-group">
+                <label for="date">日期 (MMDD)：</label>
+                <input
+                    type="text"
+                    id="date"
+                    inputmode="numeric"
+                    required
+                    placeholder="例如: 0824"
+                    onchange="fetchLastRecord()"
+                >
+            </div>
+
+            <!-- 機台編號 -->
+            <div class="form-group">
+                <label for="machine">機台編號：<span style="color: red;">*</span></label>
+                <input
+                    type="text"
+                    id="machine"
+                    required
+                    placeholder="輸入關鍵字搜尋機台..."
+                    autocomplete="off"
+                    onkeydown="jumpToShift(event)"
+                >
+                <div id="machineList" class="dropdown-list"></div>
+                <div class="machine-hint">
+                    💡 請從下方清單選擇機台，選擇後將自動撈取上一筆資料
+                </div>
+                <div
+                    class="machine-error"
+                    id="machineError"
+                >
+                    ❌ 請從機台清單中選擇有效的機台
+                </div>
+                <div
+                    class="auto-hint"
+                    id="autoHint"
+                    style="display:none;"
+                >
+                    ⚡ 已自動帶入當天該機台上一筆作業資料與結束時間
+                </div>
+            </div>
+
+            <!-- 班別 -->
+            <div class="form-group">
+                <label>班別 (請點選)：<span style="color: red;">*</span></label>
+                <div class="shift-container">
+                    <button type="button" id="dayShiftBtn" class="shift-btn" tabindex="0" onclick="selectShift('白班')" onkeydown="handleShiftKeydown(event, '白班')">☀️ 白班<br><span style="font-size:12px;">(08:00 - 17:00)</span></button>
+                    <button type="button" id="nightShiftBtn" class="shift-btn" tabindex="0" onclick="selectShift('中班')" onkeydown="handleShiftKeydown(event, '中班')">🌙 中班<br><span style="font-size:12px;">(17:00 - 03:30)</span></button>
+                </div>
+                <input type="hidden" id="shift" required value="">
+            </div>
+
+            <!-- 品名規格 -->
+            <div class="form-group">
+                <label for="part">品名規格 / 加工工序：<span style="color: red;">*</span></label>
+                <input
+                    type="text"
+                    id="part"
+                    required
+                    placeholder="輸入關鍵字搜尋品名..."
+                    autocomplete="off"
+                    onkeydown="jumpToPart(event)"
+                >
+                <div id="partList" class="dropdown-list"></div>
+                <div class="machine-hint">
+                    💡 請從下方清單選擇品名規格
+                </div>
+                <div
+                    class="machine-error"
+                    id="partError"
+                >
+                    ❌ 請從品名清單中選擇有效的品名規格
+                </div>
+            </div>
+
+            <!-- 開始時間 -->
+            <div class="form-group">
+                <label for="startTime">
+                    開始時間 (若有上一筆將自動帶入結算時間)：
+                </label>
+                <input
+                    type="text"
+                    id="startTime"
+                    inputmode="numeric"
+                    placeholder="例: 0800"
+                    maxlength="5"
+                    oninput="autoFormatTime(this, 'endTime')"
+                    onblur="validateTimeInput(this)"
+                    onkeydown="jumpToNext(event, 'endTime')"
+                    required
+                >
+                <div class="time-hint">
+                    💡 輸入 4 位數字（如 0800，離開時自動轉為 08:00）
+                </div>
+            </div>
+
+            <!-- 結算時間 -->
+            <div class="form-group">
+                <label for="endTime">
+                    結算時間 (有填數量或無效工時則必填)：
+                </label>
+                <input
+                    type="text"
+                    id="endTime"
+                    inputmode="numeric"
+                    placeholder="例: 1700"
+                    maxlength="5"
+                    oninput="autoFormatEndTime(this)"
+                    onblur="validateTimeInput(this)"
+                    disabled
+                >
+                <div class="time-hint">
+                    💡 輸入 4 位數字（如 1700，離開時自動轉為 17:00）
+                </div>
+            </div>
+
+            <!-- 應有工時 -->
+            <div class="form-group">
+                <label for="workingHoursDisplay">應有工時 (分鐘)：</label>
+                <input
+                    type="text"
+                    id="workingHoursDisplay"
+                    readonly
+                    placeholder="請選擇應有工時"
+                    style="cursor: pointer; background-color: #fff;"
+                    onclick="toggleWorkingHoursDropdown()"
+                    onkeydown="handleWorkingHoursKeydown(event)"
+                    disabled
+                >
+                <input type="hidden" id="workingHours" value="540">
+                <div id="workingHoursList" class="dropdown-list"></div>
+            </div>
+
+            <!-- 完成數量 -->
+            <div class="form-group">
+                <label for="qty">
+                    本次完成數量 (pcs)：
+                </label>
+                <input
+                    type="text"
+                    id="qty"
+                    inputmode="numeric"
+                    required
+                    placeholder="請輸入完成數量 (若無產出可填 0)"
+                    oninput="this.value = this.value.replace(/\D/g, '')"
+                    onkeydown="jumpToNext(event, 'unitSeconds')" 
+                    onkeyup="if(event.key === 'Enter' || event.keyCode === 13) { event.preventDefault(); }"
+                    disabled
+                >
+                <div class="time-hint">
+                    💡 只能輸入純數字，系統會自動過濾符號
+                </div>
+            </div>
+
+            <!-- 單件秒數 -->
+            <div class="form-group">
+                <label for="unitSeconds">
+                    生產回報單件工時 (S) 秒數 (無產出可不填)：
+                </label>
+                <input
+                    type="text"
+                    id="unitSeconds"
+                    inputmode="decimal"
+                    placeholder="請輸入單件秒數 (可至小數點第一位，0～300)"
+                    onkeydown="jumpToNext(event, 'remark')"
+                    disabled
+                >
+                <div class="time-hint">
+                    💡 單件工時範圍：0～300 秒（支援至小數點第一位）
+                </div>
+            </div>
+
+            <!-- 動態無效工時 -->
+            <label>
+                無效工時項目 (選填，最多 4 項)：
+            </label>
+            <div id="invalidContainer">
+                <div class="invalid-box" data-index="1">
+                    <div class="invalid-header">
+                        <span>項目 1</span>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 8px;">
+                        <select class="invalidType" disabled>
+                            <option value="">無</option>
+                            <option value="架機">架機</option>
+                            <option value="換刀">換刀</option>
+                            <option value="清潔">清潔</option>
+                            <option value="點檢">點檢</option>
+                            <option value="待料">待料</option>
+                            <option value="換批">換批</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input
+                            type="text"
+                            class="invalidMin"
+                            inputmode="numeric"
+                            placeholder="請輸入分鐘數"
+                            disabled
+                        />
+                    </div>
+                </div>
+                
+                <div class="invalid-box" data-index="2">
+                    <div class="invalid-header">
+                        <span>項目 2</span>
+                        <button
+                            type="button"
+                            class="btn-remove"
+                            onclick="removeInvalidBox(this)"
+                            disabled
+                        >
+                            刪除
+                        </button>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 8px;">
+                        <select class="invalidType" disabled>
+                            <option value="">無</option>
+                            <option value="架機">架機</option>
+                            <option value="換刀">換刀</option>
+                            <option value="清潔">清潔</option>
+                            <option value="點檢">點檢</option>
+                            <option value="待料">待料</option>
+                            <option value="換批">換批</option>
+                            <option value="其他">其他</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input
+                            type="text"
+                            class="invalidMin"
+                            inputmode="numeric"
+                            placeholder="請輸入分鐘數"
+                            disabled
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <button
+                type="button"
+                class="btn-add"
+                id="addInvalidBtn"
+                onclick="addInvalidBox()"
+                disabled
+            >
+                ＋ 新增無效工時項目
+            </button>
+
+            <!-- 備註 -->
+            <div
+                class="form-group"
+                style="margin-top: 15px;"
+            >
+                <label for="remark">
+                    備註 (選填)：
+                </label>
+                <input
+                    type="text"
+                    id="remark"
+                    placeholder="如有特殊狀況請填寫"
+                    disabled
+                >
+            </div>
+
+            <!-- 送出 -->
+            <button
+                type="submit"
+                id="submitBtn"
+                disabled
+            >
+                確認送出
+            </button>
+
+            <div id="loading">
+                ⏳ 正在送出資料，請稍候（請勿重複點擊）...
+            </div>
+
+            <div
+                id="requestHint"
+                class="request-hint"
+            >
+                Request ID：<span id="requestIdDisplay"></span>
+            </div>
+
+        </form>
+    </div>
+
+</div>
+
+<!-- 確認摘要彈出視窗 -->
+<div id="confirmModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3>📋 請確認回報資料</h3>
+        <div id="summaryText" class="summary-list"></div>
+        <div class="modal-buttons">
+            <button type="button" class="modal-btn btn-cancel" onclick="closeConfirmModal()">返回修改</button>
+            <button type="button" class="modal-btn btn-confirm" onclick="executeSubmit()">確認無誤，送出</button>
+        </div>
+    </div>
+</div>
+
+
+<script>
+
+    // =========================================================
+    // 基本設定
+    // =========================================================
+
+    const GAS_WEB_APP_URL =
+        "https://script.google.com/macros/s/AKfycbzNmAcfqQONHACrY_eWBPhGWD5gqnTvtSVm6ANcvV7qH7Wu1CgZJVtNDhSMJI1uCwOEcg/exec";
+
+    const LIFF_ID =
+        "2011225260-9FkqdTAH";
+
+
+    // =========================================================
+    // 全域變數
+    // =========================================================
+
+    let allMachines = [];
+    let allParts = [];
+
+    let userProfile = {};
+
+    let isUserTypingPart = false;
+
+    let lastRecordEndTime = null;
+
+    let selectedMachine = "";
+    let selectedPart = "";
+
+    let lastRecordRequestSeq = 0;
+
+    let currentRequestId = null;
+    let pendingFormData = null;
+
+
+    // =========================================================
+    // 頁面初始化
+    // =========================================================
+
+    window.onload = function () {
+        initializeLiff();
+    };
+
+
+    // =========================================================
+    // LIFF 初始化與身分驗證
+    // =========================================================
+
+    function initializeLiff() {
+        liff.init({ liffId: LIFF_ID })
+        .then(() => {
+            if (!liff.isInClient() && !liff.isLoggedIn()) {
+                liff.login();
+                return;
+            }
+            if (!liff.isLoggedIn()) {
+                document.getElementById('loginMsg').textContent = '⚠️ LINE 尚未登入';
+                document.getElementById('loginSpinner').style.display = 'none';
+                return;
+            }
+            return liff.getProfile();
+        })
+        .then(profile => {
+            if (!profile) return;
+            userProfile = profile;
+            
+            // 向 GAS 驗證該 userId 是否在授權白名單內
+            checkUserPermission(profile.userId, profile.displayName);
+        })
+        .catch(err => {
+            console.error('LIFF Initialization failed', err);
+            document.getElementById('loginMsg').textContent = '⚠️ LINE 登入初始化失敗';
+            document.getElementById('loginSpinner').style.display = 'none';
+        });
+    }
+
+
+    // =========================================================
+    // 後端權限驗證 (白名單檢查)
+    // =========================================================
+
+    function checkUserPermission(userId, displayName) {
+        document.getElementById('loginMsg').textContent = '正在驗證系統訪問權限...';
+
+        fetch(`${GAS_WEB_APP_URL}?action=checkAuth&userId=${encodeURIComponent(userId)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.authorized) {
+                // 驗證通過：切換至主表單畫面
+                document.getElementById('loginView').style.display = 'none';
+                document.getElementById('mainFormView').style.display = 'block';
+
+                // 初始化表單
+                const today = new Date();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                document.getElementById('date').value = mm + dd;
+
+                // 預設帶入無效工時項目
+                setDefaultInvalidItems();
+
+                document.getElementById('userInfo').textContent = `👤 登入身分: ${displayName}`;
+
+                fetchOptions();
+                checkAddButtonState();
+            } else {
+                // 驗證失敗：顯示拒絕訪問訊息
+                document.getElementById('loginSpinner').style.display = 'none';
+                document.getElementById('loginMsg').innerHTML = `❌ <strong>很抱歉，您無權訪問此系統</strong><br><span style="font-size: 13px; color: #999;">帳號名稱: ${displayName}</span>`;
+            }
+        })
+        .catch(err => {
+            console.error("權限驗證連線失敗", err);
+            document.getElementById('loginSpinner').style.display = 'none';
+            document.getElementById('loginMsg').textContent = '⚠️ 無法連線至伺服器驗證權限，請稍後再試。';
+        });
+    }
+
+
+    // =========================================================
+    // 預設帶入無效工時項目
+    // =========================================================
+    function setDefaultInvalidItems() {
+        const boxes = document.querySelectorAll('.invalid-box');
+        
+        // 項目 1 預設：清潔 20 分鐘
+        if (boxes[0]) {
+            const typeSelect1 = boxes[0].querySelector('.invalidType');
+            const minInput1 = boxes[0].querySelector('.invalidMin');
+            if (typeSelect1) typeSelect1.value = '清潔';
+            if (minInput1) minInput1.value = '20';
+        }
+
+        // 項目 2 預設：點檢 3 分鐘
+        if (boxes[1]) {
+            const typeSelect2 = boxes[1].querySelector('.invalidType');
+            const minInput2 = boxes[1].querySelector('.invalidMin');
+            if (typeSelect2) typeSelect2.value = '點檢';
+            if (minInput2) minInput2.value = '3';
+        }
+    }
+
+
+    // =========================================================
+    // 選擇機台邏輯
+    // =========================================================
+
+    function selectMachine(item) {
+        machineInput.value = item;
+        selectedMachine = item;
+        machineList.style.display = 'none';
+        document.getElementById('machineError').style.display = 'none';
+
+        isUserTypingPart = false;
+        document.getElementById('part').value = '';
+        selectedPart = "";
+        document.getElementById('startTime').value = '';
+        document.getElementById('endTime').value = '';
+        document.getElementById('unitSeconds').value = '';
+        lastRecordEndTime = null;
+
+        // 如果班別也已經選了，立刻撈取上一筆資料
+        if (document.getElementById('shift').value) {
+            fetchLastRecord();
+        }
+    }
+
+
+    // =========================================================
+    // 選擇品名邏輯
+    // =========================================================
+
+    function selectPart(item) {
+        partInput.value = item;
+        selectedPart = item;
+        partList.style.display = 'none';
+        document.getElementById('partError').style.display = 'none';
+        isUserTypingPart = false;
+    }
+
+
+    // =========================================================
+    // 點選班別按鈕邏輯
+    // =========================================================
+
+    function selectShift(shiftName) {
+        document.getElementById('shift').value = shiftName;
+
+        const dayBtn = document.getElementById('dayShiftBtn');
+        const nightBtn = document.getElementById('nightShiftBtn');
+
+        if (shiftName === '白班') {
+            dayBtn.className = 'shift-btn active-day';
+            nightBtn.className = 'shift-btn';
+        } else {
+            dayBtn.className = 'shift-btn';
+            nightBtn.className = 'shift-btn active-night';
+        }
+
+        // 解鎖後續欄位
+        unlockFormFields();
+        handleShiftChange();
+
+        // 如果機台已經有選好，立刻撈取上一筆資料
+        if (selectedMachine) {
+            fetchLastRecord();
+        }
+    }
+
+
+    // =========================================================
+    // 機台輸入框按下 Enter 跳到班別按鈕 (支援方向鍵選擇與模糊比對自動帶入)
+    // =========================================================
+
+    function jumpToShift(e) {
+        if (e.key === 'Enter' || e.keyCode === 13) {
+            e.preventDefault();
+            const machineVal = machineInput.value.trim();
+            
+            if (!machineVal) {
+                document.getElementById('machineError').style.display = 'block';
+                alert("❌ 請先輸入機台編號！");
+                return;
+            }
+
+            let items = machineList.getElementsByClassName('dropdown-item');
+
+            if (machineList.style.display === 'block' && machineCurrentFocus > -1 && items[machineCurrentFocus]) {
+                selectMachine(items[machineCurrentFocus].textContent);
+            } else if (allMachines.includes(machineVal)) {
+                selectMachine(machineVal);
+            } else {
+                const cleanVal = machineVal.toLowerCase().replace(/[-\s]/g, '');
+                const matchedMachines = allMachines.filter(m => {
+                    return m.toLowerCase().replace(/[-\s]/g, '').includes(cleanVal);
+                });
+
+                if (matchedMachines.length >= 1) {
+                    selectMachine(matchedMachines[0]);
+                } else {
+                    document.getElementById('machineError').style.display = 'block';
+                    alert("❌ 找不到此機台編號，請重新確認！");
+                    return;
+                }
+            }
+            
+            machineList.style.display = 'none';
+
+            const dayBtn = document.getElementById('dayShiftBtn');
+            if (dayBtn) {
+                dayBtn.focus();
+            }
+        }
+    }
+
+
+    // =========================================================
+    // 品名輸入框按下 Enter 跳到開始時間
+    // =========================================================
+
+    function jumpToPart(e) {
+        if (e.key === 'Enter' || e.keyCode === 13) {
+            e.preventDefault();
+            const partVal = partInput.value.trim();
+
+            if (!partVal) {
+                document.getElementById('partError').style.display = 'block';
+                alert("❌ 請先輸入或選擇品名規格！");
+                return;
+            }
+
+            let items = partList.getElementsByClassName('dropdown-item');
+
+            if (partList.style.display === 'block' && partCurrentFocus > -1 && items[partCurrentFocus]) {
+                selectPart(items[partCurrentFocus].textContent);
+            } else if (allParts.includes(partVal)) {
+                selectPart(partVal);
+            } else {
+                const cleanVal = partVal.toLowerCase().replace(/[-\s]/g, '');
+                const matchedParts = allParts.filter(p => {
+                    return p.toLowerCase().replace(/[-\s]/g, '').includes(cleanVal);
+                });
+
+                if (matchedParts.length >= 1) {
+                    selectPart(matchedParts[0]);
+                } else {
+                    document.getElementById('partError').style.display = 'block';
+                    alert("❌ 找不到此品名規格，請從清單中選擇！");
+                    return;
+                }
+            }
+
+            partList.style.display = 'none';
+
+            const startTimeEl = document.getElementById('startTime');
+            if (startTimeEl) {
+                startTimeEl.focus();
+            }
+        }
+    }
+
+
+    // =========================================================
+    // 班別按鈕鍵盤左右切換與 Enter 跳格
+    // =========================================================
+
+    function handleShiftKeydown(e, currentShift) {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            const targetShift = currentShift === '白班' ? '中班' : '白班';
+            selectShift(targetShift);
+
+            const targetBtn = targetShift === '白班' ? document.getElementById('dayShiftBtn') : document.getElementById('nightShiftBtn');
+            if (targetBtn) {
+                targetBtn.focus();
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            selectShift(currentShift);
+
+            setTimeout(() => {
+                const partEl = document.getElementById('part');
+                const startTimeEl = document.getElementById('startTime');
+                const endTimeEl = document.getElementById('endTime');
+
+                let targetEl = partEl;
+
+                if (partEl.value.trim() && startTimeEl.value.trim()) {
+                    targetEl = (!endTimeEl.value.trim()) ? endTimeEl : document.getElementById('qty');
+                }
+
+                if (targetEl) {
+                    targetEl.focus();
+                    targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 100);
+        }
+    }
+
+
+    // =========================================================
+    // 解鎖表單欄位 (結算時間之後的欄位)
+    // =========================================================
+
+    function unlockFormFields() {
+        const fieldsToUnlock = [
+            'endTime', 'workingHoursDisplay', 'qty', 'unitSeconds', 
+            'addInvalidBtn', 'remark', 'submitBtn'
+        ];
+
+        fieldsToUnlock.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = false;
+        });
+
+        document.querySelectorAll('.invalidType, .invalidMin, .btn-remove').forEach(el => {
+            el.disabled = false;
+        });
+    }
+
+
+    // =========================================================
+    // 取得機台 / 品號清單
+    // =========================================================
+
+    function fetchOptions() {
+        fetch(GAS_WEB_APP_URL + "?action=getOptions")
+        .then(res => {
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
+            return res.json();
+        })
+        .then(data => {
+            allMachines = (data.machines || []).map(m => String(m).trim()).filter(Boolean);
+            allParts = (data.parts || []).map(p => String(p).trim()).filter(Boolean);
+        })
+        .catch(err => {
+            console.error("⚠️ 無法取得選單資料", err);
+        });
+    }
+
+
+    // =========================================================
+    // 取得上一筆資料 (已完全移除應有工時帶入)
+    // =========================================================
+
+    function fetchLastRecord() {
+        const date = document.getElementById('date').value.trim();
+        const shift = document.getElementById('shift').value;
+        const machine = (selectedMachine || machineInput.value).trim();
+
+        if (!date || !shift || !machine) {
+            return;
+        }
+
+        const requestSeq = ++lastRecordRequestSeq;
+
+        const url = `${GAS_WEB_APP_URL}` +
+            `?action=getLastRecord` +
+            `&date=${encodeURIComponent(date)}` +
+            `&shift=${encodeURIComponent(shift)}` +
+            `&machine=${encodeURIComponent(machine)}`;
+
+        fetch(url)
+        .then(res => {
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
+            return res.json();
+        })
+        .then(data => {
+            if (requestSeq !== lastRecordRequestSeq) {
+                return;
+            }
+
+            const hintEl = document.getElementById('autoHint');
+            const startTimeEl = document.getElementById('startTime');
+
+            if (data.success) {
+                if (data.part && allParts.includes(data.part) && !selectedPart && !isUserTypingPart) {
+                    selectPart(data.part);
+                }
+
+                if (data.endTime && !startTimeEl.value.trim()) {
+                    startTimeEl.value = data.endTime;
+                    lastRecordEndTime = data.endTime;
+                }
+
+                if (data.unitSeconds !== undefined && data.unitSeconds !== null && data.unitSeconds !== "") {
+                    const previousSeconds = Number(data.unitSeconds);
+                    if (!isNaN(previousSeconds) && previousSeconds >= 0 && previousSeconds <= 300) {
+                        document.getElementById('unitSeconds').value = previousSeconds;
+                    }
+                }
+
+                hintEl.style.display = 'block';
+                setTimeout(() => {
+                    hintEl.style.display = 'none';
+                }, 4000);
+
+                setTimeout(() => {
+                    const endTimeEl = document.getElementById('endTime');
+                    const qtyEl = document.getElementById('qty');
+
+                    let targetField = (!endTimeEl.value.trim()) ? endTimeEl : qtyEl;
+                    
+                    if (targetField) {
+                        targetField.focus();
+                        targetField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 100);
+
+            } else {
+                lastRecordEndTime = null;
+                hintEl.style.display = 'none';
+            }
+        })
+        .catch(err => {
+            if (requestSeq !== lastRecordRequestSeq) {
+                return;
+            }
+            console.error("無法取得上一筆紀錄", err);
+        });
+    }
+
+
+    // =========================================================
+    // 新增無效工時
+    // =========================================================
+
+    function addInvalidBox() {
+        const container = document.getElementById('invalidContainer');
+        const count = container.getElementsByClassName('invalid-box').length;
+
+        if (count >= 4) {
+            alert("⚠️ 最多只能新增 4 組無效工時項目！");
+            return;
+        }
+
+        const newIndex = count + 1;
+        const div = document.createElement('div');
+        div.className = 'invalid-box';
+        div.setAttribute('data-index', newIndex);
+        div.innerHTML = `
+            <div class="invalid-header">
+                <span>項目 ${newIndex}</span>
+                <button type="button" class="btn-remove" onclick="removeInvalidBox(this)">刪除</button>
+            </div>
+            <div class="form-group" style="margin-bottom: 8px;">
+                <select class="invalidType">
+                    <option value="">無</option>
+                    <option value="架機">架機</option>
+                    <option value="換刀">換刀</option>
+                    <option value="清潔">清潔</option>
+                    <option value="點檢">點檢</option>
+                    <option value="待料">待料</option>
+                    <option value="換批">換批</option>
+                    <option value="其他">其他</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <input
+                    type="text"
+                    class="invalidMin"
+                    inputmode="numeric"
+                    placeholder="請輸入分鐘數"
+                />
+            </div>
+        `;
+
+        container.appendChild(div);
+        checkAddButtonState();
+    }
+
+
+    // =========================================================
+    // 刪除無效工時
+    // =========================================================
+
+    function removeInvalidBox(btn) {
+        const box = btn.closest('.invalid-box');
+        if (box) {
+            box.remove();
+        }
+
+        updateInvalidLabels();
+        checkAddButtonState();
+    }
+
+
+    // =========================================================
+    // 更新無效工時項目編號
+    // =========================================================
+
+    function updateInvalidLabels() {
+        const boxes = document.querySelectorAll('.invalid-box');
+        boxes.forEach((box, index) => {
+            box.setAttribute('data-index', index + 1);
+            box.querySelector('span').textContent = `項目 ${index + 1}`;
+        });
+    }
+
+
+    // =========================================================
+    // 檢查「新增按鈕」顯示狀態 (滿 4 個隱藏)
+    // =========================================================
+
+    function checkAddButtonState() {
+        const count = document.querySelectorAll('.invalid-box').length;
+        const addBtn = document.getElementById('addInvalidBtn');
+        if (count >= 4) {
+            addBtn.style.display = 'none';
+        } else {
+            addBtn.style.display = 'block';
+        }
+    }
+
+
+    // =========================================================
+    // Enter 跳下一欄
+    // =========================================================
+
+    function jumpToNext(e, nextId) {
+        if (e.key === 'Enter' || e.keyCode === 13) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const nextEl = document.getElementById(nextId);
+
+            if (nextEl) {
+                if (document.activeElement && document.activeElement !== nextEl) {
+                    document.activeElement.blur();
+                }
+
+                setTimeout(() => {
+                    nextEl.focus();
+
+                    setTimeout(() => {
+                        nextEl.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+                    }, 50);
+                }, 0);
+            }
+        }
+    }
+
+
+    // =========================================================
+    // 開始時間格式化
+    // =========================================================
+
+    function autoFormatTime(input, nextId) {
+        let val = input.value.replace(/\D/g, '');
+        input.value = val;
+
+        if (val.length === 4) {
+            let hour = parseInt(val.substring(0, 2), 10);
+            let minute = parseInt(val.substring(2, 4), 10);
+
+            if (hour <= 23 && minute <= 59) {
+                input.value = String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
+                if (nextId) {
+                    const nextEl = document.getElementById(nextId);
+                    if (nextEl) {
+                        nextEl.focus();
+                    }
+                }
+            }
+        }
+    }
+
+
+    // =========================================================
+    // 結算時間格式化 (白班滿 4 碼跳數量，中班跳應有工時)
+    // =========================================================
+
+    function autoFormatEndTime(input) {
+        let val = input.value.replace(/\D/g, '');
+        input.value = val;
+
+        if (val.length === 4) {
+            let hour = parseInt(val.substring(0, 2), 10);
+            let minute = parseInt(val.substring(2, 4), 10);
+
+            if (hour <= 23 && minute <= 59) {
+                input.value = String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
+                
+                const shift = document.getElementById('shift').value;
+                if (shift === '白班') {
+                    setWorkingHours('540');
+                    const nextEl = document.getElementById('qty');
+                    if (nextEl) {
+                        nextEl.focus();
+                    }
+                } else {
+                    const nextEl = document.getElementById('workingHoursDisplay');
+                    if (nextEl) {
+                        nextEl.focus();
+                    }
+                }
+            }
+        }
+    }
+
+
+    // =========================================================
+    // 時間格式驗證
+    // =========================================================
+
+    function validateTimeInput(input) {
+        let val = input.value.trim();
+        if (!val) return;
+
+        let cleanVal = val.replace(/\D/g, '');
+
+        if (cleanVal.length === 4 && !val.includes(':')) {
+            let hour = parseInt(cleanVal.substring(0, 2), 10);
+            let minute = parseInt(cleanVal.substring(2, 4), 10);
+
+            if (hour > 23 || minute > 59) {
+                alert(`❌ 輸入的時間 (${val}) 無效！`);
+                input.value = '';
+                input.focus();
+                return;
+            }
+
+            input.value = String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
+        } else if (val.includes(':')) {
+            let parts = val.split(':');
+            let hour = parseInt(parts[0], 10);
+            let minute = parseInt(parts[1], 10);
+
+            if (isNaN(hour) || isNaN(minute) || hour > 23 || minute > 59) {
+                alert('❌ 輸入的時間格式不正確！');
+                input.value = '';
+                input.focus();
+            }
+        }
+    }
+
+
+    // =========================================================
+    // 機台搜尋
+    // =========================================================
+
+    const machineInput = document.getElementById('machine');
+    const machineList = document.getElementById('machineList');
+    let machineCurrentFocus = -1;
+
+    machineInput.addEventListener('input', function () {
+        selectedMachine = '';
+        document.getElementById('machineError').style.display = 'none';
+
+        const rawVal = this.value;
+        const val = rawVal.toLowerCase().replace(/[-\s]/g, '');
+
+        machineList.innerHTML = '';
+        machineCurrentFocus = -1;
+
+        if (!val) {
+            machineList.style.display = 'none';
+            return;
+        }
+
+        const filtered = allMachines.filter(m => {
+            const cleanM = m.toLowerCase().replace(/[-\s]/g, '');
+            return cleanM.includes(val);
+        });
+
+        if (filtered.length > 0) {
+            machineList.style.display = 'block';
+            filtered.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'dropdown-item';
+                div.textContent = item;
+                div.addEventListener('mousedown', function (e) {
+                    e.preventDefault();
+                    selectMachine(item);
+                });
+                machineList.appendChild(div);
+            });
+        } else {
+            machineList.style.display = 'none';
+        }
+    });
+
+    machineInput.addEventListener('blur', function () {
+        setTimeout(() => {
+            machineList.style.display = 'none';
+
+            const typedValue = machineInput.value.trim();
+            if (typedValue && allMachines.includes(typedValue) && selectedMachine !== typedValue) {
+                selectMachine(typedValue);
+            }
+        }, 200);
+    });
+
+    machineInput.addEventListener('keydown', function (e) {
+        let items = machineList.getElementsByClassName('dropdown-item');
+
+        if (e.key === 'ArrowDown') {
+            if (items.length > 0) {
+                e.preventDefault();
+                machineCurrentFocus++;
+                if (machineCurrentFocus >= items.length) {
+                    machineCurrentFocus = 0;
+                }
+                addActive(items, machineCurrentFocus, 'machine');
+            }
+        } else if (e.key === 'ArrowUp') {
+            if (items.length > 0) {
+                e.preventDefault();
+                machineCurrentFocus--;
+                if (machineCurrentFocus < 0) {
+                    machineCurrentFocus = items.length - 1;
+                }
+                addActive(items, machineCurrentFocus, 'machine');
+            }
+        } else if (e.key === 'Enter') {
+            return;
+        }
+    });
+
+
+    // =========================================================
+    // 品號搜尋
+    // =========================================================
+
+    const partInput = document.getElementById('part');
+    const partList = document.getElementById('partList');
+    let partCurrentFocus = -1;
+
+    partInput.addEventListener('keydown', function (e) {
+        if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete') {
+            isUserTypingPart = true;
+            selectedPart = "";
+        }
+
+        let items = partList.getElementsByClassName('dropdown-item');
+
+        if (e.key === 'ArrowDown') {
+            if (items.length > 0) {
+                e.preventDefault();
+                partCurrentFocus++;
+                if (partCurrentFocus >= items.length) {
+                    partCurrentFocus = 0;
+                }
+                addActive(items, partCurrentFocus, 'part');
+            }
+        } else if (e.key === 'ArrowUp') {
+            if (items.length > 0) {
+                e.preventDefault();
+                partCurrentFocus--;
+                if (partCurrentFocus < 0) {
+                    partCurrentFocus = items.length - 1;
+                }
+                addActive(items, partCurrentFocus, 'part');
+            }
+        } else if (e.key === 'Enter') {
+            return;
+        }
+    });
+
+    partInput.addEventListener('input', function () {
+        selectedPart = '';
+        document.getElementById('partError').style.display = 'none';
+
+        const rawVal = this.value;
+        const val = rawVal.toLowerCase().replace(/[-\s]/g, '');
+
+        partList.innerHTML = '';
+        partCurrentFocus = -1;
+
+        if (!val) {
+            partList.style.display = 'none';
+            return;
+        }
+
+        const filtered = allParts.filter(p => {
+            const cleanP = p.toLowerCase().replace(/[-\s]/g, '');
+            return cleanP.includes(val);
+        });
+
+        if (filtered.length > 0) {
+            partList.style.display = 'block';
+            filtered.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'dropdown-item';
+                div.textContent = item;
+                div.addEventListener('mousedown', function (e) {
+                    e.preventDefault();
+                    selectPart(item);
+                });
+                partList.appendChild(div);
+            });
+        } else {
+            partList.style.display = 'none';
+        }
+    });
+
+    partInput.addEventListener('blur', function () {
+        setTimeout(() => {
+            partList.style.display = 'none';
+
+            const typedValue = partInput.value.trim();
+            if (typedValue) {
+                if (allParts.includes(typedValue)) {
+                    selectPart(typedValue);
+                } else {
+                    document.getElementById('partError').style.display = 'block';
+                    partInput.value = '';
+                    selectedPart = '';
+                }
+            }
+        }, 200);
+    });
+
+
+    // =========================================================
+    // 下拉選單鍵盤 active
+    // =========================================================
+
+    function addActive(items, index, type) {
+        if (!items) return;
+        for (let i = 0; i < items.length; i++) {
+            items[i].classList.remove('active');
+        }
+
+        if (type === 'machine') {
+            if (index >= items.length) {
+                machineCurrentFocus = 0;
+            }
+            if (index < 0) {
+                machineCurrentFocus = items.length - 1;
+            }
+            items[machineCurrentFocus].classList.add('active');
+            items[machineCurrentFocus].scrollIntoView({ block: 'nearest' });
+        } else if (type === 'part') {
+            if (index >= items.length) {
+                partCurrentFocus = 0;
+            }
+            if (index < 0) {
+                partCurrentFocus = items.length - 1;
+            }
+            items[partCurrentFocus].classList.add('active');
+            items[partCurrentFocus].scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+
+    // =========================================================
+    // 點擊頁面其他位置關閉下拉選單
+    // =========================================================
+
+    document.addEventListener('click', function (e) {
+        if (!machineInput.contains(e.target)) {
+            machineList.style.display = 'none';
+        }
+        if (!partInput.contains(e.target)) {
+            partList.style.display = 'none';
+        }
+        if (!document.getElementById('workingHoursDisplay').contains(e.target)) {
+            document.getElementById('workingHoursList').style.display = 'none';
+        }
+    });
+
+
+    // =========================================================
+    // 應有工時自訂選單與方向鍵控制邏輯
+    // =========================================================
+
+    function setWorkingHours(val) {
+        document.getElementById('workingHours').value = val;
+        const display = document.getElementById('workingHoursDisplay');
+        if (val === '540') {
+            display.value = '540 分鐘 (標準白班)';
+        } else if (val === '510') {
+            display.value = '510 分鐘';
+        } else if (val === '630') {
+            display.value = '630 分鐘';
+        }
+    }
+
+    function toggleWorkingHoursDropdown() {
+        const list = document.getElementById('workingHoursList');
+        const shift = document.getElementById('shift').value;
+        list.innerHTML = '';
+
+        if (shift === '白班') {
+            return;
+        }
+
+        const options = [
+            { val: '510', text: '510 分鐘' },
+            { val: '630', text: '630 分鐘' }
+        ];
+
+        options.forEach(opt => {
+            const div = document.createElement('div');
+            div.className = 'dropdown-item';
+            div.textContent = opt.text;
+            div.addEventListener('mousedown', function (e) {
+                e.preventDefault();
+                setWorkingHours(opt.val);
+                list.style.display = 'none';
+                document.getElementById('qty').focus();
+            });
+            list.appendChild(div);
+        });
+
+        list.style.display = list.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function handleWorkingHoursKeydown(e) {
+        const shift = document.getElementById('shift').value;
+        if (shift === '白班') {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                jumpToNext(e, 'qty');
+            }
+            return;
+        }
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setWorkingHours('510');
+            document.getElementById('workingHoursList').style.display = 'none';
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setWorkingHours('630');
+            document.getElementById('workingHoursList').style.display = 'none';
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('workingHoursList').style.display = 'none';
+            jumpToNext(e, 'qty');
+        }
+    }
+
+
+    // =========================================================
+    // 班別切換
+    // =========================================================
+
+    function handleShiftChange() {
+        const shift = document.getElementById('shift').value;
+
+        if (shift === '白班') {
+            setWorkingHours('540');
+        } else if (shift === '中班') {
+            setWorkingHours('510');
+        }
+    }
+
+
+    // =========================================================
+    // 產生 Request ID
+    // =========================================================
+
+    function generateRequestId() {
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(2, 10);
+        return timestamp + '-' + random;
+    }
+
+
+    // =========================================================
+    // 解析時間
+    // =========================================================
+
+    function parseMinutes(timeStr, isMidShift) {
+        const parts = timeStr.split(':');
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        let total = h * 60 + m;
+
+        if (isMidShift && total < 480) {
+            total += 1440;
+        }
+
+        return total;
+    }
+
+
+    // =========================================================
+    // 表單送出 (攔截並開啟確認彈出視窗)
+    // =========================================================
+
+    document.getElementById('reportForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        if (!userProfile.userId) {
+            alert("⚠️ 尚未取得 LINE 身分識別，請重新整理頁面！");
+            return;
+        }
+
+        const machine = machineInput.value.trim();
+        if (!machine || !selectedMachine || machine !== selectedMachine) {
+            document.getElementById('machineError').style.display = 'block';
+            alert("❌ 請從機台清單中選擇有效的機台！");
+            machineInput.focus();
+            return;
+        }
+
+        const part = partInput.value.trim();
+        if (!part || !selectedPart || part !== selectedPart) {
+            document.getElementById('partError').style.display = 'block';
+            alert("❌ 請從品名清單中選擇有效的品名規格！");
+            partInput.focus();
+            return;
+        }
+
+        const shift = document.getElementById('shift').value;
+        if (!shift) {
+            alert("❌ 請先選擇班別（白班或中班）！");
+            return;
+        }
+
+        const startTime = document.getElementById('startTime').value.trim();
+        const endTime = document.getElementById('endTime').value.trim();
+        const qtyInput = document.getElementById('qty').value.trim();
+        const qty = Number(qtyInput) || 0;
+
+        if (qty < 0) {
+            alert("❌ 完成數量不可為負數！");
+            document.getElementById('qty').focus();
+            return;
+        }
+
+        const unitSecondsInput = document.getElementById('unitSeconds').value.trim();
+        const unitSeconds = unitSecondsInput !== "" ? Number(Number(unitSecondsInput).toFixed(1)) : 0;
+
+        if (unitSecondsInput !== "" && (isNaN(unitSeconds) || unitSeconds < 0 || unitSeconds > 300)) {
+            alert("❌ 單件工時秒數必須介於 0～300 秒！");
+            document.getElementById('unitSeconds').focus();
+            return;
+        }
+
+        if (qty > 0 && (unitSecondsInput === "" || unitSeconds <= 0)) {
+            alert("❌ 當有生產數量時，單件工時秒數為必填，且必須大於 0 秒！");
+            document.getElementById('unitSeconds').focus();
+            return;
+        }
+
+        const invalidBoxes = document.querySelectorAll('.invalid-box');
+        let invalidItems = [];
+        let hasNegativeInvalid = false;
+        let hasInvalidConfigError = false;
+        let hasDuplicateInvalidType = false;
+        let totalInvalidMinutes = 0;
+        let selectedInvalidTypes = new Set();
+
+        invalidBoxes.forEach(box => {
+            const type = box.querySelector('.invalidType').value;
+            const minInput = box.querySelector('.invalidMin').value.trim();
+            const min = minInput !== "" ? Number(minInput) : 0;
+
+            if (min < 0) {
+                hasNegativeInvalid = true;
+            }
+
+            if (type !== "" && type !== "無" && (minInput === "" || min <= 0)) {
+                hasInvalidConfigError = true;
+            }
+
+            if ((!type || type === "無") && min > 0) {
+                hasInvalidConfigError = true;
+            }
+
+            if (type && type !== "無" && min > 0) {
+                if (selectedInvalidTypes.has(type)) {
+                    hasDuplicateInvalidType = true;
+                } else {
+                    selectedInvalidTypes.add(type);
+                }
+
+                invalidItems.push({ type: type, min: min });
+                totalInvalidMinutes += min;
+            }
+        });
+
+        if (hasNegativeInvalid) {
+            alert("❌ 無效工時分鐘數不可輸入負數！");
+            return;
+        }
+
+        if (hasInvalidConfigError) {
+            alert("❌ 無效工時填寫有誤！\n\n若要填寫無效工時，請確實選擇項目並填入大於 0 的分鐘數；\n若不填寫請將項目設為「無」且分鐘數留空。");
+            return;
+        }
+
+        if (hasDuplicateInvalidType) {
+            alert("❌ 無效工時項目重複！\n\n相同的無效工時項目（例如：清潔、換刀等）只能選擇一次，請將相同項目的時間合併計算，或選擇不同的項目。");
+            return;
+        }
+
+        const workingHours = Number(document.getElementById('workingHours').value);
+
+        if (totalInvalidMinutes > workingHours) {
+            alert(`❌ 無效工時合計不可超過應有工時！\n\n應有工時：${workingHours} 分鐘\n無效工時：${totalInvalidMinutes} 分鐘`);
+            return;
+        }
+
+        if (qty > 0 && !endTime) {
+            alert("❌ 當您填寫了本次完成數量時，結算時間為必填欄位！");
+            document.getElementById('endTime').focus();
+            return;
+        }
+
+        if (qty === 0 && invalidItems.length > 0 && !endTime) {
+            alert("❌ 您回報了無效工時但數量為 0，請填寫結算時間以記錄區間！");
+            document.getElementById('endTime').focus();
+            return;
+        }
+
+        if (startTime && endTime && startTime === endTime) {
+            alert("❌ 開始時間與結算時間不能相同！");
+            return;
+        }
+
+        const isMid = (shift === '中班');
+        const startMin = parseMinutes(startTime, isMid);
+        const endMin = endTime ? parseMinutes(endTime, isMid) : null;
+
+        if (endMin !== null && startMin > endMin) {
+            alert(`❌ 時間防呆錯誤：開始時間 (${startTime}) 不能晚於結算時間 (${endTime})！`);
+            document.getElementById('startTime').focus();
+            return;
+        }
+
+        if (lastRecordEndTime) {
+            let lastEndMin = parseMinutes(lastRecordEndTime, isMid);
+            if (startMin < lastEndMin) {
+                alert(`❌ 時間防呆錯誤：\n\n此機台上一筆作業的結束時間是 【${lastRecordEndTime}】。\n您輸入的開始時間 (${startTime}) 早於上一筆結束時間，會造成時間重疊！`);
+                document.getElementById('startTime').value = lastRecordEndTime;
+                document.getElementById('startTime').focus();
+                return;
+            }
+        }
+
+        if (endMin !== null) {
+            let totalElapsedMinutes = endMin - startMin;
+
+            if (shift === '中班') {
+                if (workingHours === 510 && totalElapsedMinutes === 630) {
+                    alert(
+                        `❌ 報工時間邏輯錯誤！\n\n` +
+                        `您選擇的應有工時是 【510 分鐘】，但填寫的起訖時間 (${startTime} ~ ${endTime}) 總計是 630 分鐘。\n\n` +
+                        `若要報滿 630 分鐘，請將「應有工時」改選為 630 分鐘；\n` +
+                        `若應有工時為 510 分鐘，請調整結算時間或填寫無效工時扣除！`
+                    );
+                    document.getElementById('workingHoursDisplay').focus();
+                    return;
+                }
+            }
+        }
+
+        if (shift === '白班') {
+            const rawStart = parseMinutes(startTime, false);
+            const rawEnd = endMin !== null ? parseMinutes(endTime, false) : null;
+
+            if (rawStart < 480 || rawStart > 1080 || (rawEnd !== null && (rawEnd < 480 || rawEnd > 1080))) {
+                alert("❌ 【白班】的時間範圍必須在 08:00 ～ 18:00 之間！");
+                return;
+            }
+        } else if (shift === '中班') {
+            const adjStartMin = startMin;
+            const adjEndMin = endMin !== null ? parseMinutes(endTime, true) : null;
+
+            if (adjStartMin < 960 || adjStartMin > 1650 || (adjEndMin !== null && (adjEndMin > 1650 || adjStartMin > adjEndMin))) {
+                alert("❌ 【中班】的時間範圍必須在 16:30 ～ 03:30 跨夜範圍內！");
+                return;
+            }
+        }
+
+        if (!currentRequestId) {
+            currentRequestId = generateRequestId();
+        }
+
+        // 封裝表單資料準備送出
+        pendingFormData = {
+            requestId: currentRequestId,
+            userId: userProfile.userId,
+            userName: userProfile.displayName,
+            date: document.getElementById('date').value,
+            shift: shift,
+            machine: machineInput.value,
+            part: partInput.value,
+            startTime: startTime,
+            endTime: endTime,
+            workingHours: workingHours,
+            qty: qty,
+            unitSeconds: unitSeconds,
+            invalidItems: invalidItems,
+            remark: document.getElementById('remark').value
+        };
+
+        // 彈出確認摘要對話框
+        showConfirmSummary(pendingFormData, invalidItems);
+    });
+
+
+    // =========================================================
+    // 顯示確認摘要對話框
+    // =========================================================
+
+    function showConfirmSummary(data, invalidItems) {
+        let html = `
+            <b>日期：</b>${data.date}<br>
+            <b>班別：</b>${data.shift}<br>
+            <b>機台：</b>${data.machine}<br>
+            <b>件號：</b>${data.part}<br>
+            <b>開始時間：</b>${data.startTime}<br>
+            <b>結束時間：</b>${data.endTime || '（未填）'}<br>
+            <b>完成數量：</b>${data.qty} pcs<br>
+            <b>單件工時(sec)：</b>${data.unitSeconds || 0} 秒<br>
+        `;
+
+        if (invalidItems.length > 0) {
+            html += `<br><b>【無效工時明細】</b><br>`;
+            invalidItems.forEach(item => {
+                html += `&nbsp;&nbsp;• ${item.type}：${item.min} 分鐘<br>`;
+            });
+        }
+
+        if (data.remark) {
+            html += `<br><b>備註：</b>${data.remark}`;
+        }
+
+        document.getElementById('summaryText').innerHTML = html;
+        document.getElementById('confirmModal').style.display = 'flex';
+    }
+
+    function closeConfirmModal() {
+        document.getElementById('confirmModal').style.display = 'none';
+    }
+
+
+    // =========================================================
+    // 實際發送資料至 GAS (從對話框點擊確認後執行)
+    // =========================================================
+
+    function executeSubmit() {
+        closeConfirmModal();
+
+        document.getElementById('requestIdDisplay').textContent = currentRequestId;
+        document.getElementById('requestHint').style.display = 'block';
+
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = "傳送中...";
+        document.getElementById('loading').style.display = 'block';
+
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+                reject(new Error('timeout'));
+            }, 15000);
+        });
+
+        const fetchPromise = fetch(GAS_WEB_APP_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify(pendingFormData)
+        })
+        .then(res => {
+            clearTimeout(timeoutId);
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
+            return res.json();
+        });
+
+        Promise.race([fetchPromise, timeoutPromise])
+        .then(data => {
+            document.getElementById('loading').style.display = 'none';
+            submitBtn.disabled = false;
+            submitBtn.textContent = "確認送出";
+
+            if (data && data.success === false) {
+                alert(data.message || "❌ 回報失敗，資料未寫入。");
+                return;
+            }
+
+            alert(data.message || "✅ 回報成功！");
+            resetFormAfterSubmit();
+        })
+        .catch(err => {
+            document.getElementById('loading').style.display = 'none';
+            submitBtn.disabled = false;
+            submitBtn.textContent = "重新確認 / 送出";
+
+            console.warn("POST 回應異常：", err);
+
+            alert(
+                "⚠️ 無法確認回報結果。\n\n" +
+                "資料可能已經寫入試算表，也可能尚未寫入。\n\n" +
+                "請先不要重新填寫資料。\n\n" +
+                "Request ID：\n" + currentRequestId + "\n\n" +
+                "若後端有啟用 Request ID 重複機制，可以使用相同 Request ID 再次送出以確認結果。"
+            );
+        });
+    }
+
+
+    // =========================================================
+    // 送出成功後重設表單 (回到機台欄位)
+    // =========================================================
+
+    function resetFormAfterSubmit() {
+        document.getElementById('qty').value = '';
+        document.getElementById('unitSeconds').value = '';
+        document.getElementById('startTime').value = '';
+        document.getElementById('endTime').value = '';
+        document.getElementById('remark').value = '';
+
+        machineInput.value = '';
+        partInput.value = '';
+        selectedMachine = '';
+        selectedPart = '';
+        isUserTypingPart = false;
+        lastRecordEndTime = null;
+        currentRequestId = null;
+
+        // 重設班別按鈕狀態
+        document.getElementById('shift').value = '';
+        document.getElementById('dayShiftBtn').className = 'shift-btn';
+        document.getElementById('nightShiftBtn').className = 'shift-btn';
+
+        const fieldsToLock = [
+            'endTime', 'workingHoursDisplay', 'qty', 'unitSeconds', 'addInvalidBtn', 
+            'remark', 'submitBtn'
+        ];
+        fieldsToLock.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = true;
+        });
+
+        document.getElementById('requestHint').style.display = 'none';
+        document.getElementById('machineError').style.display = 'none';
+        document.getElementById('partError').style.display = 'none';
+
+        const container = document.getElementById('invalidContainer');
+        container.innerHTML = `
+            <div class="invalid-box" data-index="1">
+                <div class="invalid-header">
+                    <span>項目 1</span>
+                </div>
+                <div class="form-group" style="margin-bottom: 8px;">
+                    <select class="invalidType" disabled>
+                        <option value="">無</option>
+                        <option value="架機">架機</option>
+                        <option value="換刀">換刀</option>
+                        <option value="清潔">清潔</option>
+                        <option value="點檢">點檢</option>
+                        <option value="待料">待料</option>
+                        <option value="換批">換批</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <input
+                        type="text"
+                        class="invalidMin"
+                        inputmode="numeric"
+                        placeholder="請輸入分鐘數"
+                        disabled
+                    />
+                </div>
+            </div>
+            
+            <div class="invalid-box" data-index="2">
+                <div class="invalid-header">
+                    <span>項目 2</span>
+                    <button
+                        type="button"
+                        class="btn-remove"
+                        onclick="removeInvalidBox(this)"
+                        disabled
+                    >
+                        刪除
+                    </button>
+                </div>
+                <div class="form-group" style="margin-bottom: 8px;">
+                    <select class="invalidType" disabled>
+                        <option value="">無</option>
+                        <option value="架機">架機</option>
+                        <option value="換刀">換刀</option>
+                        <option value="清潔">清潔</option>
+                        <option value="點檢">點檢</option>
+                        <option value="待料">待料</option>
+                        <option value="換批">換批</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <input
+                        type="text"
+                        class="invalidMin"
+                        inputmode="numeric"
+                        placeholder="請輸入分鐘數"
+                        disabled
+                    />
+                </div>
+            </div>
+        `;
+
+        checkAddButtonState();
+        
+        // 重設後依然保留無效工時預設值
+        setDefaultInvalidItems();
+
+        machineInput.focus();
+        machineInput.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+    }
+
+</script>
+
+</body>
+</html>
