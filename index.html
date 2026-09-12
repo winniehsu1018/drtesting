@@ -753,8 +753,8 @@
 
         fetch(`${GAS_WEB_APP_URL}?action=checkAuth&userId=${encodeURIComponent(userId)}`)
         .then(res => res.json())
-        .then(data => {
-           if (data.success && data.authorized) {
+.then(data => {
+            if (data.success && data.authorized) {
     // 驗證通過：切換至主表單畫面
     document.getElementById('loginView').style.display = 'none';
     document.getElementById('mainFormView').style.display = 'block';
@@ -769,14 +769,14 @@
     setDefaultInvalidItems();
 
     // 判斷角色身分
-if (data.role === 'viewer') {
-    document.getElementById('userInfo').innerHTML = `👤 登入身分: ${displayName} <span style="color: #ed8936; font-weight: bold;">(👀 僅檢視權限)</span>`;
-    alert("ℹ️ 提醒：您目前的帳號權限為「僅供檢視」，無法填寫或送出報工資料。");
-    
-    // 選擇性：將所有輸入框與送出按鈕直接永久停用
-    document.getElementById('reportForm').querySelectorAll('input, select, button').forEach(el => el.disabled = true);
-    return; // 直接中斷，不執行後續的 fetchOptions()
-} else {
+    if (data.role === 'viewer') {
+        document.getElementById('userInfo').innerHTML = `👤 登入身分: ${displayName} <span style="color: #ed8936; font-weight: bold;">(👀 僅檢視權限)</span>`;
+        alert("ℹ️ 提醒：您目前的帳號權限為「僅供檢視」，無法填寫或送出報工資料。");
+        
+        // 【將所有輸入框與送出按鈕直接永久停用】
+        document.getElementById('reportForm').querySelectorAll('input, select, button').forEach(el => el.disabled = true);
+        return; // 直接中斷，不執行後續的 fetchOptions()
+    } else {
         document.getElementById('userInfo').textContent = `👤 登入身分: ${displayName}`;
     }
 
