@@ -688,7 +688,9 @@
     let allParts = [];
 
     let userProfile = {};
-
+    
+    let realEmployeeName = ""; // 👈 新增：用來存放白名單中的正式員工姓名
+    
     let isUserTypingPart = false;
 
     let lastRecordEndTime = null;
@@ -748,41 +750,43 @@
     // 後端權限驗證 (白名單檢查)
     // =========================================================
 
-    function checkUserPermission(userId, displayName) {
+function checkUserPermission(userId, displayName) {
         document.getElementById('loginMsg').textContent = '正在驗證系統訪問權限...';
 
         fetch(`${GAS_WEB_APP_URL}?action=checkAuth&userId=${encodeURIComponent(userId)}`)
         .then(res => res.json())
-.then(data => {
+        .then(data => {
             if (data.success && data.authorized) {
-    // 驗證通過：切換至主表單畫面
-    document.getElementById('loginView').style.display = 'none';
-    document.getElementById('mainFormView').style.display = 'block';
+                // 驗證通過：切換至主表單畫面
+                document.getElementById('loginView').style.display = 'none';
+                document.getElementById('mainFormView').style.display = 'block';
 
-    // 初始化表單
-    const today = new Date();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    document.getElementById('date').value = mm + dd;
+                // 抓取後端白名單的名字（如果白名單沒填名字，才退回使用 LINE 名字）
+                realEmployeeName = data.employeeName || displayName;
 
-    // 預設帶入無效工時項目
-    setDefaultInvalidItems();
+                // 初始化表單
+                const today = new Date();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                document.getElementById('date').value = mm + dd;
 
-    // 判斷角色身分
-    if (data.role === 'viewer') {
-        document.getElementById('userInfo').innerHTML = `👤 登入身分: ${displayName} <span style="color: #ed8936; font-weight: bold;">(👀 僅檢視權限)</span>`;
-        alert("ℹ️ 提醒：您目前的帳號權限為「僅供檢視」，無法填寫或送出報工資料。");
-        
-        // 【將所有輸入框與送出按鈕直接永久停用】
-        document.getElementById('reportForm').querySelectorAll('input, select, button').forEach(el => el.disabled = true);
-        return; // 直接中斷，不執行後續的 fetchOptions()
-    } else {
-        document.getElementById('userInfo').textContent = `👤 登入身分: ${displayName}`;
-    }
+                // 預設帶入無效工時項目
+                setDefaultInvalidItems();
 
-    fetchOptions();
-    checkAddButtonState();
-} else {
+                // 判斷角色身分（此處改用 realEmployeeName 顯示）
+                if (data.role === 'viewer') {
+                    document.getElementById('userInfo').innerHTML = `👤 登入身分: ${realEmployeeName} <span style="color: #ed8936; font-weight: bold;">(👀 僅檢視權限)</span>`;
+                    alert("ℹ️ 提醒：您目前的帳號權限為「僅供檢視」，無法填寫或送出報工資料。");
+                    
+                    document.getElementById('reportForm').querySelectorAll('input, select, button').forEach(el => el.disabled = true);
+                    return; 
+                } else {
+                    document.getElementById('userInfo').textContent = `👤 登入身分: ${realEmployeeName}`; // 👈 顯示白名單姓名
+                }
+
+                fetchOptions();
+                checkAddButtonState();
+            } else {
                 // 驗證失敗：顯示拒絕訪問訊息
                 document.getElementById('loginSpinner').style.display = 'none';
                 document.getElementById('loginMsg').innerHTML = `❌ <strong>很抱歉，您無權訪問此系統</strong><br><span style="font-size: 13px; color: #999;">帳號名稱: ${displayName}</span>`;
@@ -794,7 +798,6 @@
             document.getElementById('loginMsg').textContent = '⚠️ 無法連線至伺服器驗證權限，請稍後再試。';
         });
     }
-
 
     // =========================================================
     // 預設帶入無效工時項目
@@ -1911,7 +1914,7 @@
         pendingFormData = {
             requestId: currentRequestId,
             userId: userProfile.userId,
-            userName: userProfile.displayName,
+            userName: realEmployeeName,
             date: document.getElementById('date').value,
             shift: shift,
             machine: machineInput.value,
