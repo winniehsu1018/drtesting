@@ -678,7 +678,31 @@
 
     const LIFF_ID =
         "2011565361-yGUaRYVQ";
+    
+// =========================================================
+// 取得目前「生產日期」
+// 每天凌晨 04:30 前仍歸屬前一天
+// 04:30 起才切換為今天
+// =========================================================
+function getProductionDateMMDD() {
+    const now = new Date();
 
+    const currentMinutes =
+        now.getHours() * 60 + now.getMinutes();
+
+    // 04:30 = 270 分鐘
+    if (currentMinutes < 270) {
+        now.setDate(now.getDate() - 1);
+    }
+
+    const mm =
+        String(now.getMonth() + 1).padStart(2, '0');
+
+    const dd =
+        String(now.getDate()).padStart(2, '0');
+
+    return mm + dd;
+}
 
     // =========================================================
     // 全域變數
@@ -777,10 +801,8 @@ function checkUserPermission(userId, displayName) {
 
             realEmployeeName = data.employeeName || displayName;
 
-            const today = new Date();
-            const mm = String(today.getMonth() + 1).padStart(2, '0');
-            const dd = String(today.getDate()).padStart(2, '0');
-            document.getElementById('date').value = mm + dd;
+            document.getElementById('date').value =
+    getProductionDateMMDD();
 
             setDefaultInvalidItems();
 
