@@ -2251,75 +2251,326 @@ function fetchLastRecord() {
     }
 
 
-    // =========================================================
-    // 實際發送資料至 GAS (從對話框點擊確認後執行)
-    // =========================================================
+   // =========================================================
+// 實際發送資料至 GAS
+// 加入效能計時
+// =========================================================
+function executeSubmit() {
 
-    function executeSubmit() {
-        closeConfirmModal();
+    closeConfirmModal();
 
-        document.getElementById('requestIdDisplay').textContent = currentRequestId;
-        document.getElementById('requestHint').style.display = 'block';
+    document.getElementById(
+        'requestIdDisplay'
+    ).textContent =
+        currentRequestId;
 
-        const submitBtn = document.getElementById('submitBtn');
-        submitBtn.disabled = true;
-        submitBtn.textContent = "傳送中...";
-        document.getElementById('loading').style.display = 'block';
+    document.getElementById(
+        'requestHint'
+    ).style.display =
+        'block';
 
-        let timeoutId;
-        const timeoutPromise = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => {
-                reject(new Error('timeout'));
-            }, 15000);
-        });
 
-        const fetchPromise = fetch(GAS_WEB_APP_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'text/plain;charset=utf-8'
-            },
-            body: JSON.stringify(pendingFormData)
-        })
-        .then(res => {
-            clearTimeout(timeoutId);
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}`);
+    const submitBtn =
+        document.getElementById(
+            'submitBtn'
+        );
+
+    submitBtn.disabled =
+        true;
+
+    submitBtn.textContent =
+        "傳送中...";
+
+    document.getElementById(
+        'loading'
+    ).style.display =
+        'block';
+
+
+    // =====================================================
+    // 前端開始計時
+    // =====================================================
+    const frontendStart =
+        performance.now();
+
+
+    let timeoutId;
+
+
+    const timeoutPromise =
+        new Promise(
+            (_, reject) => {
+
+                timeoutId =
+                    setTimeout(
+                        () => {
+
+                            reject(
+                                new Error(
+                                    'timeout'
+                                )
+                            );
+
+                        },
+                        15000
+                    );
             }
+        );
+
+
+    const fetchPromise =
+        fetch(
+            GAS_WEB_APP_URL,
+            {
+
+                method:
+                    'POST',
+
+                headers: {
+                    'Content-Type':
+                        'text/plain;charset=utf-8'
+                },
+
+                body:
+                    JSON.stringify(
+                        pendingFormData
+                    )
+            }
+        )
+        .then(res => {
+
+            clearTimeout(
+                timeoutId
+            );
+
+
+            if (!res.ok) {
+
+                throw new Error(
+                    `HTTP ${res.status}`
+                );
+            }
+
+
             return res.json();
         });
 
-        Promise.race([fetchPromise, timeoutPromise])
-        .then(data => {
-            document.getElementById('loading').style.display = 'none';
-            submitBtn.disabled = false;
-            submitBtn.textContent = "確認送出";
 
-            if (data && data.success === false) {
-                alert(data.message || "❌ 回報失敗，資料未寫入。");
-                return;
+    Promise.race([
+        fetchPromise,
+        timeoutPromise
+    ])
+
+    .then(data => {
+
+        // =================================================
+        // 前端完整往返時間
+        // =================================================
+        const frontendTotalMs =
+            Math.round(
+                performance.now() -
+                frontendStart
+            );
+
+
+        console.log(
+            "================================="
+        );
+
+        console.log(
+            "📊 生產日報送出效能分析"
+        );
+
+        console.log(
+            "================================="
+        );
+
+
+        console.log(
+            "🌐 前端完整等待時間：",
+            frontendTotalMs,
+            "ms"
+        );
+
+
+        // =================================================
+        // GAS timing
+        // =================================================
+        if (
+            data &&
+            data._timing
+        ) {
+
+            console.log(
+                "🔥 GAS 後端總時間：",
+                data._timing.gasTotalMs,
+                "ms"
+            );
+
+
+            console.log(
+                "🔐 權限驗證：",
+                data._timing.permissionMs,
+                "ms"
+            );
+
+
+            console.log(
+                "🔒 Lock 等待：",
+                data._timing.lockWaitMs,
+                "ms"
+            );
+
+
+            console.log(
+                "📦 submitReportData：",
+                data._timing.submitTotalMs,
+                "ms"
+            );
+
+
+            // =============================================
+            // submitReportData 詳細資料
+            // =============================================
+            if (
+                data._timing.submit
+            ) {
+
+                console.log(
+                    "----- submitReportData 詳細 -----"
+                );
+
+
+                console.table(
+                    data._timing.submit
+                );
             }
 
-            alert(data.message || "✅ 回報成功！");
-            resetFormAfterSubmit();
-        })
-        .catch(err => {
-            document.getElementById('loading').style.display = 'none';
-            submitBtn.disabled = false;
-            submitBtn.textContent = "重新確認 / 送出";
 
-            console.warn("POST 回應異常：", err);
+            // =============================================
+            // 推估 GAS 以外耗時
+            // =============================================
+            const externalMs =
+                Math.max(
+                    0,
+                    frontendTotalMs -
+                    (
+                        data._timing
+                            .gasTotalMs ||
+                        0
+                    )
+                );
+
+
+            console.log(
+                "🌍 推估 HTTP / GAS 啟動 / 回傳耗時：",
+                externalMs,
+                "ms"
+            );
+        }
+
+
+        console.log(
+            "================================="
+        );
+
+
+        // =================================================
+        // 原本 UI 邏輯
+        // =================================================
+        document.getElementById(
+            'loading'
+        ).style.display =
+            'none';
+
+
+        submitBtn.disabled =
+            false;
+
+
+        submitBtn.textContent =
+            "確認送出";
+
+
+        if (
+            data &&
+            data.success === false
+        ) {
 
             alert(
-                "⚠️ 無法確認回報結果。\n\n" +
-                "資料可能已經寫入試算表，也可能尚未寫入。\n\n" +
-                "請先不要重新填寫資料。\n\n" +
-                "Request ID：\n" + currentRequestId + "\n\n" +
-                "若後端有啟用 Request ID 重複機制，可以使用相同 Request ID 再次送出以確認結果。"
+                data.message ||
+                "❌ 回報失敗，資料未寫入。"
             );
-        });
-    }
+
+            return;
+        }
 
 
+        alert(
+            data.message ||
+            "✅ 回報成功！"
+        );
+
+
+        resetFormAfterSubmit();
+    })
+
+
+    .catch(err => {
+
+        // =================================================
+        // 即使失敗，也記錄等待多久
+        // =================================================
+        const frontendTotalMs =
+            Math.round(
+                performance.now() -
+                frontendStart
+            );
+
+
+        console.warn(
+            "POST 回應異常：",
+            err
+        );
+
+
+        console.log(
+            "⚠️ POST 失敗 / Timeout"
+        );
+
+
+        console.log(
+            "前端已等待：",
+            frontendTotalMs,
+            "ms"
+        );
+
+
+        document.getElementById(
+            'loading'
+        ).style.display =
+            'none';
+
+
+        submitBtn.disabled =
+            false;
+
+
+        submitBtn.textContent =
+            "重新確認 / 送出";
+
+
+        alert(
+            "⚠️ 無法確認回報結果。\n\n" +
+            "資料可能已經寫入試算表，也可能尚未寫入。\n\n" +
+            "請先不要重新填寫資料。\n\n" +
+            "Request ID：\n" +
+            currentRequestId +
+            "\n\n" +
+            "若後端有啟用 Request ID 重複機制，可以使用相同 Request ID 再次送出以確認結果。"
+        );
+    });
+}
     // =========================================================
     // 送出成功後重設表單 (回到機台欄位)
     // =========================================================
