@@ -751,54 +751,79 @@
     // =========================================================
 
 function checkUserPermission(userId, displayName) {
-        document.getElementById('loginMsg').textContent = '正在驗證系統訪問權限...';
+    document.getElementById('loginMsg').textContent =
+        '正在驗證系統訪問權限...';
 
-        fetch(`${GAS_WEB_APP_URL}?action=checkAuth&userId=${encodeURIComponent(userId)}`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.success && data.authorized) {
-                // 驗證通過：切換至主表單畫面
-                document.getElementById('loginView').style.display = 'none';
-                document.getElementById('mainFormView').style.display = 'block';
+    const authUrl =
+        `${GAS_WEB_APP_URL}?action=checkAuth` +
+        `&userId=${encodeURIComponent(userId)}` +
+        `&_=${Date.now()}`;
 
-                // 抓取後端白名單的名字（如果白名單沒填名字，才退回使用 LINE 名字）
-                realEmployeeName = data.employeeName || displayName;
+    fetch(authUrl, {
+        method: 'GET',
+        cache: 'no-store'
+    })
+    .then(res => {
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+    })
+    .then(data => {
+        if (data.success && data.authorized) {
 
-                // 初始化表單
-                const today = new Date();
-                const mm = String(today.getMonth() + 1).padStart(2, '0');
-                const dd = String(today.getDate()).padStart(2, '0');
-                document.getElementById('date').value = mm + dd;
+            document.getElementById('loginView').style.display = 'none';
+            document.getElementById('mainFormView').style.display = 'block';
 
-                // 預設帶入無效工時項目
-                setDefaultInvalidItems();
+            realEmployeeName = data.employeeName || displayName;
 
-                // 判斷角色身分（此處改用 realEmployeeName 顯示）
-                if (data.role === 'viewer') {
-                    document.getElementById('userInfo').innerHTML = `👤 登入身分: ${realEmployeeName} <span style="color: #ed8936; font-weight: bold;">(👀 僅檢視權限)</span>`;
-                    alert("ℹ️ 提醒：您目前的帳號權限為「僅供檢視」，無法填寫或送出報工資料。");
-                    
-                    document.getElementById('reportForm').querySelectorAll('input, select, button').forEach(el => el.disabled = true);
-                    return; 
-                } else {
-                    document.getElementById('userInfo').textContent = `👤 登入身分: ${realEmployeeName}`; // 👈 顯示白名單姓名
-                }
+            const today = new Date();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            document.getElementById('date').value = mm + dd;
 
-                fetchOptions();
-                checkAddButtonState();
-            } else {
-                // 驗證失敗：顯示拒絕訪問訊息
-                document.getElementById('loginSpinner').style.display = 'none';
-                document.getElementById('loginMsg').innerHTML = `❌ <strong>很抱歉，您無權訪問此系統</strong><br><span style="font-size: 13px; color: #999;">帳號名稱: ${displayName}</span>`;
+            setDefaultInvalidItems();
+
+            if (data.role === 'viewer') {
+                document.getElementById('userInfo').innerHTML =
+                    `👤 登入身分: ${realEmployeeName} ` +
+                    `<span style="color:#ed8936;font-weight:bold;">` +
+                    `(👀 僅檢視權限)</span>`;
+
+                alert(
+                    "ℹ️ 提醒：您目前的帳號權限為「僅供檢視」，無法填寫或送出報工資料。"
+                );
+
+                document.getElementById('reportForm')
+                    .querySelectorAll('input, select, button')
+                    .forEach(el => el.disabled = true);
+
+                return;
             }
-        })
-        .catch(err => {
-            console.error("權限驗證連線失敗", err);
-            document.getElementById('loginSpinner').style.display = 'none';
-            document.getElementById('loginMsg').textContent = '⚠️ 無法連線至伺服器驗證權限，請稍後再試。';
-        });
-    }
 
+            document.getElementById('userInfo').textContent =
+                `👤 登入身分: ${realEmployeeName}`;
+
+            fetchOptions();
+            checkAddButtonState();
+
+        } else {
+            document.getElementById('loginSpinner').style.display = 'none';
+
+            document.getElementById('loginMsg').innerHTML =
+                `❌ <strong>很抱歉，您無權訪問此系統</strong><br>` +
+                `<span style="font-size:13px;color:#999;">` +
+                `帳號名稱: ${displayName}</span>`;
+        }
+    })
+    .catch(err => {
+        console.error("權限驗證連線失敗", err);
+
+        document.getElementById('loginSpinner').style.display = 'none';
+        document.getElementById('loginMsg').textContent =
+            '⚠️ 無法連線至伺服器驗證權限，請稍後再試。';
+    });
+}
     // =========================================================
     // 預設帶入無效工時項目
     // =========================================================
@@ -1045,116 +1070,351 @@ function checkUserPermission(userId, displayName) {
     // 取得機台 / 品號清單
     // =========================================================
 
- function fetchOptions() {
-    fetch(GAS_WEB_APP_URL + "?action=getOptions")
-    .then(res => res.json())
-    .then(data => {
-        const serverVersion = data.version;
-        const localVersion = localStorage.getItem('cached_version');
+function fetchOptions() {
 
-        allMachines = (data.machines || []).map(m => String(m).trim()).filter(Boolean);
-        allParts = (data.parts || []).map(p => String(p).trim()).filter(Boolean);
+    // =====================================================
+    // 1. 機台清單先從 localStorage 立即載入
+    //    不等待 GAS 回應
+    // =====================================================
 
-        // 如果後端版本跟本地不同，或者本地沒有存，就更新 localStorage
-        if (serverVersion !== localVersion) {
-            localStorage.setItem('cached_machines', JSON.stringify(allMachines));
-            localStorage.setItem('cached_version', serverVersion);
-            console.log("⚡ 機台清單已自動更新至最新版本");
+    const cachedMachines =
+        localStorage.getItem('cached_machines');
+
+    if (cachedMachines) {
+        try {
+            const parsedMachines =
+                JSON.parse(cachedMachines);
+
+            if (Array.isArray(parsedMachines)) {
+                allMachines = parsedMachines
+                    .map(m => String(m).trim())
+                    .filter(Boolean);
+            }
+
+        } catch (e) {
+            console.error(
+                "⚠️ 本地機台快取解析失敗",
+                e
+            );
+
+            allMachines = [];
         }
+    }
+
+
+    // =====================================================
+    // 2. 背景向 GAS 取得最新資料
+    // =====================================================
+
+    const url =
+        `${GAS_WEB_APP_URL}?action=getOptions&_=${Date.now()}`;
+
+    fetch(url, {
+        method: 'GET',
+        cache: 'no-store'
+    })
+    .then(res => {
+
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+
+        return res.json();
+    })
+    .then(data => {
+
+        // =================================================
+        // 3. GAS 回來後，用最新機台清單更新 allMachines
+        // =================================================
+
+        const latestMachines =
+            (data.machines || [])
+                .map(m => String(m).trim())
+                .filter(Boolean);
+
+        if (latestMachines.length > 0) {
+
+            allMachines = latestMachines;
+
+            // 同步更新 localStorage
+            localStorage.setItem(
+                'cached_machines',
+                JSON.stringify(latestMachines)
+            );
+
+            // 保留原本版本資訊
+            if (data.version) {
+                localStorage.setItem(
+                    'cached_version',
+                    data.version
+                );
+            }
+        }
+
+
+        // =================================================
+        // 4. 件號 / 品名維持原本方式
+        //    不存 localStorage
+        //    仍由 GAS CacheService 管理
+        // =================================================
+
+        allParts =
+            (data.parts || [])
+                .map(p => String(p).trim())
+                .filter(Boolean);
+
     })
     .catch(err => {
-        console.error("⚠️ 無法取得選單資料，改用本地快取", err);
-        // 若網路斷線，退而求其次讀取舊的 localStorage 確保可以運作
-        const cachedMachines = localStorage.getItem('cached_machines');
-        if (cachedMachines) {
-            allMachines = JSON.parse(cachedMachines);
-        }
+
+        console.error(
+            "⚠️ 無法取得最新選單資料，機台繼續使用本地快取",
+            err
+        );
+
+        // 不需要再做其他處理
+        // 因為機台清單一開始就已經從 localStorage 載入
     });
 }
-
     // =========================================================
     // 取得上一筆資料 (已完全移除應有工時帶入)
     // =========================================================
+function fetchLastRecord() {
 
-    function fetchLastRecord() {
-        const date = document.getElementById('date').value.trim();
-        const shift = document.getElementById('shift').value;
-        const machine = (selectedMachine || machineInput.value).trim();
+    const date =
+        document.getElementById('date').value.trim();
 
-        if (!date || !shift || !machine) {
+    const shift =
+        document.getElementById('shift').value;
+
+    const machine =
+        (selectedMachine || machineInput.value).trim();
+
+
+    // 日期 / 班別 / 機台有任何一項沒填就不查詢
+    if (!date || !shift || !machine) {
+        return;
+    }
+
+
+    // =====================================================
+    // 每次查詢產生流水號
+    // 防止較慢的舊請求覆蓋較新的查詢結果
+    // =====================================================
+
+    const requestSeq =
+        ++lastRecordRequestSeq;
+
+
+    // =====================================================
+    // 建立 GAS GET URL
+    //
+    // &_=${Date.now()}
+    // 用途：
+    // 避免瀏覽器 / Google Apps Script redirect
+    // 使用先前已快取的回應網址
+    // =====================================================
+
+    const url =
+        `${GAS_WEB_APP_URL}` +
+        `?action=getLastRecord` +
+        `&date=${encodeURIComponent(date)}` +
+        `&shift=${encodeURIComponent(shift)}` +
+        `&machine=${encodeURIComponent(machine)}` +
+        `&_=${Date.now()}`;
+
+
+    fetch(url, {
+        method: 'GET',
+        cache: 'no-store'
+    })
+
+    .then(res => {
+
+        // HTTP 不是 2xx
+        // 例如 404 / 500
+        // 不要再直接執行 res.json()
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+
+        return res.json();
+    })
+
+    .then(data => {
+
+        // =====================================================
+        // 如果這已經不是最新一次查詢
+        // 直接忽略舊結果
+        // =====================================================
+
+        if (requestSeq !== lastRecordRequestSeq) {
             return;
         }
 
-        const requestSeq = ++lastRecordRequestSeq;
 
-        const url = `${GAS_WEB_APP_URL}` +
-            `?action=getLastRecord` +
-            `&date=${encodeURIComponent(date)}` +
-            `&shift=${encodeURIComponent(shift)}` +
-            `&machine=${encodeURIComponent(machine)}`;
+        const hintEl =
+            document.getElementById('autoHint');
 
-        fetch(url)
-        .then(res => {
-            if (!res.ok) {
-                throw new Error(`HTTP ${res.status}`);
+        const startTimeEl =
+            document.getElementById('startTime');
+
+
+        // =====================================================
+        // 找到上一筆資料
+        // =====================================================
+
+        if (data.success) {
+
+
+            // -------------------------------------------------
+            // 自動帶入上一筆品名
+            //
+            // 條件：
+            // 1. 後端有回傳品名
+            // 2. 品名存在於目前品名清單
+            // 3. 使用者尚未選擇品名
+            // 4. 使用者目前沒有自己輸入品名
+            // -------------------------------------------------
+
+            if (
+                data.part &&
+                allParts.includes(data.part) &&
+                !selectedPart &&
+                !isUserTypingPart
+            ) {
+
+                selectPart(data.part);
             }
-            return res.json();
-        })
-        .then(data => {
-            if (requestSeq !== lastRecordRequestSeq) {
-                return;
+
+
+            // -------------------------------------------------
+            // 自動將上一筆「結算時間」
+            // 帶入本次「開始時間」
+            // -------------------------------------------------
+
+            if (
+                data.endTime &&
+                !startTimeEl.value.trim()
+            ) {
+
+                startTimeEl.value =
+                    data.endTime;
+
+                lastRecordEndTime =
+                    data.endTime;
             }
 
-            const hintEl = document.getElementById('autoHint');
-            const startTimeEl = document.getElementById('startTime');
 
-            if (data.success) {
-                if (data.part && allParts.includes(data.part) && !selectedPart && !isUserTypingPart) {
-                    selectPart(data.part);
+            // -------------------------------------------------
+            // 自動帶入上一筆單件秒數
+            // -------------------------------------------------
+
+            if (
+                data.unitSeconds !== undefined &&
+                data.unitSeconds !== null &&
+                data.unitSeconds !== ""
+            ) {
+
+                const previousSeconds =
+                    Number(data.unitSeconds);
+
+                if (
+                    !isNaN(previousSeconds) &&
+                    previousSeconds >= 0 &&
+                    previousSeconds <= 300
+                ) {
+
+                    document
+                        .getElementById('unitSeconds')
+                        .value = previousSeconds;
+                }
+            }
+
+
+            // -------------------------------------------------
+            // 顯示「已自動帶入上一筆」提示
+            // -------------------------------------------------
+
+            hintEl.style.display =
+                'block';
+
+            setTimeout(() => {
+
+                hintEl.style.display =
+                    'none';
+
+            }, 4000);
+
+
+            // -------------------------------------------------
+            // 自動移動游標
+            // -------------------------------------------------
+
+            setTimeout(() => {
+
+                const endTimeEl =
+                    document.getElementById('endTime');
+
+                const qtyEl =
+                    document.getElementById('qty');
+
+
+                // 結算時間尚未填寫
+                // → 游標移到結算時間
+                //
+                // 已經有結算時間
+                // → 游標移到完成數量
+
+                let targetField =
+                    (!endTimeEl.value.trim())
+                        ? endTimeEl
+                        : qtyEl;
+
+
+                if (targetField) {
+
+                    targetField.focus();
+
+                    targetField.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
                 }
 
-                if (data.endTime && !startTimeEl.value.trim()) {
-                    startTimeEl.value = data.endTime;
-                    lastRecordEndTime = data.endTime;
-                }
+            }, 100);
 
-                if (data.unitSeconds !== undefined && data.unitSeconds !== null && data.unitSeconds !== "") {
-                    const previousSeconds = Number(data.unitSeconds);
-                    if (!isNaN(previousSeconds) && previousSeconds >= 0 && previousSeconds <= 300) {
-                        document.getElementById('unitSeconds').value = previousSeconds;
-                    }
-                }
 
-                hintEl.style.display = 'block';
-                setTimeout(() => {
-                    hintEl.style.display = 'none';
-                }, 4000);
+        } else {
 
-                setTimeout(() => {
-                    const endTimeEl = document.getElementById('endTime');
-                    const qtyEl = document.getElementById('qty');
+            // =================================================
+            // 找不到上一筆資料
+            // =================================================
 
-                    let targetField = (!endTimeEl.value.trim()) ? endTimeEl : qtyEl;
-                    
-                    if (targetField) {
-                        targetField.focus();
-                        targetField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                }, 100);
+            lastRecordEndTime =
+                null;
 
-            } else {
-                lastRecordEndTime = null;
-                hintEl.style.display = 'none';
-            }
-        })
-        .catch(err => {
-            if (requestSeq !== lastRecordRequestSeq) {
-                return;
-            }
-            console.error("無法取得上一筆紀錄", err);
-        });
-    }
+            hintEl.style.display =
+                'none';
+        }
+    })
 
+    .catch(err => {
+
+        // 如果已經有更新的請求
+        // 舊請求即使失敗也不用處理
+        if (
+            requestSeq !==
+            lastRecordRequestSeq
+        ) {
+            return;
+        }
+
+        console.error(
+            "⚠️ 無法取得上一筆紀錄",
+            err
+        );
+    });
+}
 
     // =========================================================
     // 新增無效工時
