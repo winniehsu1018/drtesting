@@ -674,10 +674,10 @@
     // =========================================================
 
     const GAS_WEB_APP_URL =
-        "https://script.google.com/macros/s/AKfycbyFe5bvS0PXwFUzI5Uoevfd5yihoDV0-8DnGx4NB0ICWP3Vz7zA77NnZwjC0_Ac0szj/exec";
+        "https://script.google.com/macros/s/AKfycbwqDY8e31iuKrchHkJUjicPK57UytKRz6DdztQ7-2fGiVNsEYpfiHMaYlQ1YdHBKREA8Q/exec";
 
     const LIFF_ID =
-        "2011565361-yGUaRYVQ";
+        "2011225260-9FkqdTAH";
     
 // =========================================================
 // 取得目前「生產日期」
@@ -771,6 +771,89 @@ function getProductionDateMMDD() {
 
 
     // =========================================================
+    // GAS GET 共用背景重試
+    // 404 / 429 / 5xx / 暫時性網路異常：
+    // 第一次失敗等 1 秒，第二次失敗等 2 秒，最多 3 次。
+    // 不重新整理整個頁面，避免 LIFF 重跑及使用者已填資料遺失。
+    // =========================================================
+    async function fetchGasJsonWithRetry(url, label = 'GAS GET') {
+        const MAX_ATTEMPTS = 3;
+        const RETRY_DELAYS = [1000, 2000];
+
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            let res;
+
+            try {
+                res = await fetch(url, {
+                    method: 'GET',
+                    cache: 'no-store',
+                    redirect: 'follow'
+                });
+            } catch (networkError) {
+                if (attempt < MAX_ATTEMPTS) {
+                    const delay = RETRY_DELAYS[attempt - 1] || 2000;
+                    console.warn(
+                        `[${label}] 網路異常，第 ${attempt} 次失敗，${delay / 1000} 秒後重試`,
+                        networkError
+                    );
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+
+                throw new Error(
+                    `${label} 網路連線失敗｜嘗試 ${attempt}/${MAX_ATTEMPTS}｜` +
+                    (networkError.message || networkError)
+                );
+            }
+
+            if (res.ok) {
+                const rawText = await res.text();
+
+                try {
+                    return JSON.parse(rawText);
+                } catch (jsonError) {
+                    throw new Error(
+                        `${label} 回傳格式異常｜` +
+                        (rawText
+                            ? rawText.replace(/\s+/g, ' ').trim().slice(0, 300)
+                            : '無回應內容')
+                    );
+                }
+            }
+
+            const retryable =
+                res.status === 404 ||
+                res.status === 429 ||
+                res.status >= 500;
+
+            if (retryable && attempt < MAX_ATTEMPTS) {
+                const delay = RETRY_DELAYS[attempt - 1] || 2000;
+
+                console.warn(
+                    `[${label}] HTTP ${res.status}，第 ${attempt} 次失敗，` +
+                    `${delay / 1000} 秒後重試`
+                );
+
+                await new Promise(resolve => setTimeout(resolve, delay));
+                continue;
+            }
+
+            const responseText = await res.text().catch(() => '');
+            const detail = responseText
+                ? responseText.replace(/\s+/g, ' ').trim().slice(0, 300)
+                : '無回應內容';
+
+            throw new Error(
+                `${label} 失敗｜HTTP ${res.status}｜` +
+                `嘗試 ${attempt}/${MAX_ATTEMPTS}｜${detail}`
+            );
+        }
+
+        throw new Error(`${label} 呼叫失敗`);
+    }
+
+
+    // =========================================================
     // 後端權限驗證 (白名單檢查)
     // =========================================================
 
@@ -783,16 +866,10 @@ function checkUserPermission(userId, displayName) {
         `&userId=${encodeURIComponent(userId)}` +
         `&_=${Date.now()}`;
 
-    fetch(authUrl, {
-        method: 'GET',
-        cache: 'no-store'
-    })
-    .then(res => {
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
-        }
-        return res.json();
-    })
+    fetchGasJsonWithRetry(
+        authUrl,
+        'checkAuth'
+    )
     .then(data => {
         if (data.success && data.authorized) {
 
@@ -1131,18 +1208,10 @@ function fetchOptions() {
     const url =
         `${GAS_WEB_APP_URL}?action=getOptions&_=${Date.now()}`;
 
-    fetch(url, {
-        method: 'GET',
-        cache: 'no-store'
-    })
-    .then(res => {
-
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
-        }
-
-        return res.json();
-    })
+    fetchGasJsonWithRetry(
+        url,
+        'getOptions'
+    )
     .then(data => {
 
         // =================================================
@@ -1245,22 +1314,10 @@ function fetchLastRecord() {
         `&_=${Date.now()}`;
 
 
-    fetch(url, {
-        method: 'GET',
-        cache: 'no-store'
-    })
-
-    .then(res => {
-
-        // HTTP 不是 2xx
-        // 例如 404 / 500
-        // 不要再直接執行 res.json()
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
-        }
-
-        return res.json();
-    })
+    fetchGasJsonWithRetry(
+        url,
+        'getLastRecord'
+    )
 
     .then(data => {
 
@@ -2251,326 +2308,75 @@ function fetchLastRecord() {
     }
 
 
-   // =========================================================
-// 實際發送資料至 GAS
-// 加入效能計時
-// =========================================================
-function executeSubmit() {
+    // =========================================================
+    // 實際發送資料至 GAS (從對話框點擊確認後執行)
+    // =========================================================
 
-    closeConfirmModal();
+    function executeSubmit() {
+        closeConfirmModal();
 
-    document.getElementById(
-        'requestIdDisplay'
-    ).textContent =
-        currentRequestId;
+        document.getElementById('requestIdDisplay').textContent = currentRequestId;
+        document.getElementById('requestHint').style.display = 'block';
 
-    document.getElementById(
-        'requestHint'
-    ).style.display =
-        'block';
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = "傳送中...";
+        document.getElementById('loading').style.display = 'block';
 
+        let timeoutId;
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+                reject(new Error('timeout'));
+            }, 15000);
+        });
 
-    const submitBtn =
-        document.getElementById(
-            'submitBtn'
-        );
-
-    submitBtn.disabled =
-        true;
-
-    submitBtn.textContent =
-        "傳送中...";
-
-    document.getElementById(
-        'loading'
-    ).style.display =
-        'block';
-
-
-    // =====================================================
-    // 前端開始計時
-    // =====================================================
-    const frontendStart =
-        performance.now();
-
-
-    let timeoutId;
-
-
-    const timeoutPromise =
-        new Promise(
-            (_, reject) => {
-
-                timeoutId =
-                    setTimeout(
-                        () => {
-
-                            reject(
-                                new Error(
-                                    'timeout'
-                                )
-                            );
-
-                        },
-                        15000
-                    );
-            }
-        );
-
-
-    const fetchPromise =
-        fetch(
-            GAS_WEB_APP_URL,
-            {
-
-                method:
-                    'POST',
-
-                headers: {
-                    'Content-Type':
-                        'text/plain;charset=utf-8'
-                },
-
-                body:
-                    JSON.stringify(
-                        pendingFormData
-                    )
-            }
-        )
+        const fetchPromise = fetch(GAS_WEB_APP_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify(pendingFormData)
+        })
         .then(res => {
-
-            clearTimeout(
-                timeoutId
-            );
-
-
+            clearTimeout(timeoutId);
             if (!res.ok) {
-
-                throw new Error(
-                    `HTTP ${res.status}`
-                );
+                throw new Error(`HTTP ${res.status}`);
             }
-
-
             return res.json();
         });
 
+        Promise.race([fetchPromise, timeoutPromise])
+        .then(data => {
+            document.getElementById('loading').style.display = 'none';
+            submitBtn.disabled = false;
+            submitBtn.textContent = "確認送出";
 
-    Promise.race([
-        fetchPromise,
-        timeoutPromise
-    ])
-
-    .then(data => {
-
-        // =================================================
-        // 前端完整往返時間
-        // =================================================
-        const frontendTotalMs =
-            Math.round(
-                performance.now() -
-                frontendStart
-            );
-
-
-        console.log(
-            "================================="
-        );
-
-        console.log(
-            "📊 生產日報送出效能分析"
-        );
-
-        console.log(
-            "================================="
-        );
-
-
-        console.log(
-            "🌐 前端完整等待時間：",
-            frontendTotalMs,
-            "ms"
-        );
-
-
-        // =================================================
-        // GAS timing
-        // =================================================
-        if (
-            data &&
-            data._timing
-        ) {
-
-            console.log(
-                "🔥 GAS 後端總時間：",
-                data._timing.gasTotalMs,
-                "ms"
-            );
-
-
-            console.log(
-                "🔐 權限驗證：",
-                data._timing.permissionMs,
-                "ms"
-            );
-
-
-            console.log(
-                "🔒 Lock 等待：",
-                data._timing.lockWaitMs,
-                "ms"
-            );
-
-
-            console.log(
-                "📦 submitReportData：",
-                data._timing.submitTotalMs,
-                "ms"
-            );
-
-
-            // =============================================
-            // submitReportData 詳細資料
-            // =============================================
-            if (
-                data._timing.submit
-            ) {
-
-                console.log(
-                    "----- submitReportData 詳細 -----"
-                );
-
-
-                console.table(
-                    data._timing.submit
-                );
+            if (data && data.success === false) {
+                alert(data.message || "❌ 回報失敗，資料未寫入。");
+                return;
             }
 
+            alert(data.message || "✅ 回報成功！");
+            resetFormAfterSubmit();
+        })
+        .catch(err => {
+            document.getElementById('loading').style.display = 'none';
+            submitBtn.disabled = false;
+            submitBtn.textContent = "重新確認 / 送出";
 
-            // =============================================
-            // 推估 GAS 以外耗時
-            // =============================================
-            const externalMs =
-                Math.max(
-                    0,
-                    frontendTotalMs -
-                    (
-                        data._timing
-                            .gasTotalMs ||
-                        0
-                    )
-                );
-
-
-            console.log(
-                "🌍 推估 HTTP / GAS 啟動 / 回傳耗時：",
-                externalMs,
-                "ms"
-            );
-        }
-
-
-        console.log(
-            "================================="
-        );
-
-
-        // =================================================
-        // 原本 UI 邏輯
-        // =================================================
-        document.getElementById(
-            'loading'
-        ).style.display =
-            'none';
-
-
-        submitBtn.disabled =
-            false;
-
-
-        submitBtn.textContent =
-            "確認送出";
-
-
-        if (
-            data &&
-            data.success === false
-        ) {
+            console.warn("POST 回應異常：", err);
 
             alert(
-                data.message ||
-                "❌ 回報失敗，資料未寫入。"
+                "⚠️ 無法確認回報結果。\n\n" +
+                "資料可能已經寫入試算表，也可能尚未寫入。\n\n" +
+                "請先不要重新填寫資料。\n\n" +
+                "Request ID：\n" + currentRequestId + "\n\n" +
+                "若後端有啟用 Request ID 重複機制，可以使用相同 Request ID 再次送出以確認結果。"
             );
-
-            return;
-        }
-
-
-        alert(
-            data.message ||
-            "✅ 回報成功！"
-        );
+        });
+    }
 
 
-        resetFormAfterSubmit();
-    })
-
-
-    .catch(err => {
-
-        // =================================================
-        // 即使失敗，也記錄等待多久
-        // =================================================
-        const frontendTotalMs =
-            Math.round(
-                performance.now() -
-                frontendStart
-            );
-
-
-        console.warn(
-            "POST 回應異常：",
-            err
-        );
-
-
-        console.log(
-            "⚠️ POST 失敗 / Timeout"
-        );
-
-
-        console.log(
-            "前端已等待：",
-            frontendTotalMs,
-            "ms"
-        );
-
-
-        document.getElementById(
-            'loading'
-        ).style.display =
-            'none';
-
-
-        submitBtn.disabled =
-            false;
-
-
-        submitBtn.textContent =
-            "重新確認 / 送出";
-
-
-        alert(
-            "⚠️ 無法確認回報結果。\n\n" +
-            "資料可能已經寫入試算表，也可能尚未寫入。\n\n" +
-            "請先不要重新填寫資料。\n\n" +
-            "Request ID：\n" +
-            currentRequestId +
-            "\n\n" +
-            "若後端有啟用 Request ID 重複機制，可以使用相同 Request ID 再次送出以確認結果。"
-        );
-    });
-}
     // =========================================================
     // 送出成功後重設表單 (回到機台欄位)
     // =========================================================
