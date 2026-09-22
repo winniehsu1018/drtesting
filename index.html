@@ -337,6 +337,13 @@
         .btn-cancel:hover {
             background: #5a6268;
         }
+
+        /* 管理員專用區塊：預設完全隱藏 */
+        #adminPanel { display:none; margin-top:24px; padding:15px; background:#fff8e1; border:1px solid #ffe082; border-radius:8px; }
+        #adminPanel h3 { margin:0 0 10px 0; font-size:17px; color:#555; }
+        .admin-btn { width:100%; border:none; border-radius:5px; padding:11px; margin-top:8px; font-size:16px; font-weight:bold; cursor:pointer; background:#6c757d; color:white; }
+        .admin-btn:disabled { background:#cccccc; }
+        #adminStatus { margin-top:10px; font-size:13px; color:#666; line-height:1.5; }
     </style>
 </head>
 
@@ -650,6 +657,15 @@
             </div>
 
         </form>
+
+        <!-- 僅管理員可見 -->
+        <div id="adminPanel">
+            <h3>⚙️ 系統管理</h3>
+            <div class="time-hint">僅限管理員操作</div>
+            <button type="button" class="admin-btn" id="adminPartsCacheBtn" onclick="runAdminAction('adminClearPartsCache')">🔄 更新件號快取</button>
+            <button type="button" class="admin-btn" id="adminAuthCacheBtn" onclick="runAdminAction('adminClearAuthCache')">🔐 更新權限快取</button>
+            <div id="adminStatus"></div>
+        </div>
     </div>
 
 </div>
@@ -713,7 +729,8 @@ function getProductionDateMMDD() {
 
     let userProfile = {};
     
-    let realEmployeeName = ""; // 👈 新增：用來存放白名單中的正式員工姓名
+    let realEmployeeName = ""; // 用來存放白名單中的正式員工姓名
+    let isCurrentUserAdmin = false;
     
     let isUserTypingPart = false;
 
@@ -877,6 +894,9 @@ function checkUserPermission(userId, displayName) {
             document.getElementById('mainFormView').style.display = 'block';
 
             realEmployeeName = data.employeeName || displayName;
+            isCurrentUserAdmin = (data.isAdmin === true);
+            const adminPanel = document.getElementById('adminPanel');
+            if (adminPanel) adminPanel.style.display = isCurrentUserAdmin ? 'block' : 'none';
 
             document.getElementById('date').value =
     getProductionDateMMDD();
@@ -923,6 +943,42 @@ function checkUserPermission(userId, displayName) {
             '⚠️ 無法連線至伺服器驗證權限，請稍後再試。';
     });
 }
+
+    // =========================================================
+    // 管理員功能：後端會再次核對 LINE User ID + 白名單 E欄
+    // =========================================================
+    async function runAdminAction(action) {
+        if (!isCurrentUserAdmin || !userProfile.userId) {
+            alert('❌ 權限不足：只有系統管理員可以執行此功能。');
+            return;
+        }
+        const label = action === 'adminClearPartsCache' ? '更新件號快取' : '更新權限快取';
+        if (!confirm(`確定要${label}嗎？`)) return;
+
+        const partsBtn = document.getElementById('adminPartsCacheBtn');
+        const authBtn = document.getElementById('adminAuthCacheBtn');
+        const status = document.getElementById('adminStatus');
+        partsBtn.disabled = true; authBtn.disabled = true;
+        status.textContent = `⏳ 正在${label}...`;
+
+        const url = `${GAS_WEB_APP_URL}?action=${encodeURIComponent(action)}` +
+                    `&userId=${encodeURIComponent(userProfile.userId)}` +
+                    `&_=${Date.now()}`;
+        try {
+            const data = await fetchGasJsonWithRetry(url, label);
+            if (!data || data.success !== true) throw new Error((data && data.message) || `${label}失敗`);
+            if (action === 'adminClearPartsCache') fetchOptions();
+            status.textContent = data.message || `✅ ${label}完成`;
+            alert(data.message || `✅ ${label}完成`);
+        } catch (err) {
+            console.error(label + '失敗', err);
+            status.textContent = `❌ ${label}失敗：${err.message || err}`;
+            alert(`❌ ${label}失敗，請稍後再試。`);
+        } finally {
+            partsBtn.disabled = false; authBtn.disabled = false;
+        }
+    }
+
     // =========================================================
     // 預設帶入無效工時項目
     // =========================================================
