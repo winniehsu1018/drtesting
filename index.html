@@ -1063,6 +1063,15 @@ function checkUserPermission(userId, displayName) {
         unlockFormFields();
         handleShiftChange();
 
+        // 白班預設 08:00～17:00 / 540 分鐘，但仍可手動修改
+        if (shiftName === '白班') {
+            const startTimeEl = document.getElementById('startTime');
+            const endTimeEl = document.getElementById('endTime');
+            if (!startTimeEl.value.trim()) startTimeEl.value = '08:00';
+            if (!endTimeEl.value.trim()) endTimeEl.value = '17:00';
+            setWorkingHours('540');
+        }
+
         // 如果機台已經有選好，立刻撈取上一筆資料
         if (selectedMachine) {
             fetchLastRecord();
@@ -1427,16 +1436,10 @@ function fetchLastRecord() {
             // 帶入本次「開始時間」
             // -------------------------------------------------
 
-            if (
-                data.endTime &&
-                !startTimeEl.value.trim()
-            ) {
-
-                startTimeEl.value =
-                    data.endTime;
-
-                lastRecordEndTime =
-                    data.endTime;
+            // 有上一筆時，上一筆結算時間優先於白班預設 08:00
+            if (data.endTime) {
+                startTimeEl.value = data.endTime;
+                lastRecordEndTime = data.endTime;
             }
 
 
@@ -2452,19 +2455,22 @@ function fetchLastRecord() {
         lastRecordEndTime = null;
         currentRequestId = null;
 
-        // 重設班別按鈕狀態
-        document.getElementById('shift').value = '';
-        document.getElementById('dayShiftBtn').className = 'shift-btn';
-        document.getElementById('nightShiftBtn').className = 'shift-btn';
+        // 保留目前班別，方便連續回報下一台機台
+        const currentShift = document.getElementById('shift').value;
 
-        const fieldsToLock = [
-            'endTime', 'workingHoursDisplay', 'qty', 'unitSeconds', 'addInvalidBtn', 
-            'remark', 'submitBtn'
-        ];
-        fieldsToLock.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.disabled = true;
-        });
+        // 班別已選定，因此下一筆不重新鎖住輸入欄位
+        if (currentShift) {
+            unlockFormFields();
+            handleShiftChange();
+
+            // 白班下一台先恢復標準預設值；選機台後若有上一筆，
+            // fetchLastRecord() 會再用上一筆結算時間覆蓋開始時間。
+            if (currentShift === '白班') {
+                document.getElementById('startTime').value = '08:00';
+                document.getElementById('endTime').value = '17:00';
+                setWorkingHours('540');
+            }
+        }
 
         document.getElementById('requestHint').style.display = 'none';
         document.getElementById('machineError').style.display = 'none';
