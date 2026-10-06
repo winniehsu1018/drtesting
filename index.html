@@ -1772,11 +1772,16 @@ function fetchLastRecord() {
             // 找不到上一筆資料
             // =================================================
 
-            lastRecordEndTime =
-                null;
+            lastRecordEndTime = null;
+            hintEl.style.display = 'none';
 
-            hintEl.style.display =
-                'none';
+            // 白班沒有上一筆時，維持標準 08:00～17:00。
+            // 中班不強制帶入固定時間。
+            if (shift === '白班') {
+                document.getElementById('startTime').value = '08:00';
+                document.getElementById('endTime').value = '17:00';
+                setWorkingHours('540');
+            }
         }
     })
 
@@ -1795,6 +1800,13 @@ function fetchLastRecord() {
             "⚠️ 無法取得上一筆紀錄",
             err
         );
+
+        // 查詢失敗時也不要把白班第二筆留成空白。
+        if (shift === '白班') {
+            document.getElementById('startTime').value = '08:00';
+            document.getElementById('endTime').value = '17:00';
+            setWorkingHours('540');
+        }
     });
 }
 
@@ -2832,6 +2844,12 @@ function fetchLastRecord() {
         
         // 重設後依然保留無效工時預設值
         setDefaultInvalidItems();
+
+        // 注意：上方 invalidContainer 是重建後的新 DOM。
+        // 因此必須在重建完成後再次解鎖，否則第二筆的無效工時欄位會維持 disabled。
+        if (currentShift) {
+            unlockFormFields();
+        }
 
         machineInput.focus();
         machineInput.scrollIntoView({
