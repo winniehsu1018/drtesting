@@ -1176,6 +1176,16 @@ function checkUserPermission(userId, displayName) {
         }
     }
 
+    function focusBatchArea() {
+        const area = document.getElementById('batchChoiceList');
+        if (!area) return;
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                area.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+        });
+    }
+
     function batchOptionText(b) {
         const parts = [b.batchId || ''];
         if (b.lotNo) parts.push('批號 ' + b.lotNo);
@@ -1283,8 +1293,8 @@ function checkUserPermission(userId, displayName) {
                 selectedBatchId = '';
                 batchSelectionMade = true;
 
-                status.className = 'batch-status warn';
-                status.textContent = '⚠️ 此件號目前沒有尚未完成的生產批次；本筆將以「無批次ID」回報。';
+                status.className = 'batch-status ok';
+                status.textContent = '✅ 目前沒有可關聯的生產批次，已自動使用「無批次ID（導入前舊批次）」。';
                 return;
             }
 
@@ -1300,24 +1310,27 @@ function checkUserPermission(userId, displayName) {
             list.appendChild(legacyBtn);
 
             if (batches.length === 1) {
-                // 只有一個正式批次：維持原本自動帶入邏輯。
-                const firstBtn = list.querySelector('.batch-choice-btn');
-                firstBtn.classList.add('selected');
-                selectedBatchId = batches[0].batchId;
-                batchSelectionMade = true;
+                // 導入期：即使只有一個正式 Batch，也可能正在加工導入前舊料。
+                // 因此「正式 Batch」與「無批次ID」都顯示，但一律不自動選。
+                selectedBatchId = '';
+                batchSelectionMade = false;
 
-                status.className = 'batch-status ok';
+                status.className = 'batch-status warn';
                 status.textContent =
-                    `✅ 已自動關聯批次 ${batches[0].batchId}；若本次加工屬於導入前舊料，可改選「無批次ID」。` +
+                    `⚠️ 找到 1 個尚未完成批次，請確認本次加工批次；若為導入前舊料，請選「無批次ID」。` +
                     (currentOperation ? `｜工序 ${currentOperation}` : '');
+
+                focusBatchArea();
             } else {
                 // 多個正式批次：不預選，避免誤連。
                 selectedBatchId = '';
                 batchSelectionMade = false;
                 status.className = 'batch-status warn';
                 status.textContent =
-                    `⚠️ 找到 ${batches.length} 個尚未完成批次，請直接點選本次加工批次；若為舊料則選「無批次ID」。` +
+                    `⚠️ 找到 ${batches.length} 個尚未完成批次，請確認本次加工批次；若為導入前舊料，請選「無批次ID」。` +
                     (currentOperation ? `｜工序 ${currentOperation}` : '');
+
+                focusBatchArea();
             }
         })
         .catch(err => {
@@ -1360,13 +1373,19 @@ function checkUserPermission(userId, displayName) {
         unlockFormFields();
         handleShiftChange();
 
-        // 白班預設 08:00～17:00 / 540 分鐘，但仍可手動修改
+        // 班別時間規則
         if (shiftName === '白班') {
             const startTimeEl = document.getElementById('startTime');
             const endTimeEl = document.getElementById('endTime');
             if (!startTimeEl.value.trim()) startTimeEl.value = '08:00';
             if (!endTimeEl.value.trim()) endTimeEl.value = '17:00';
             setWorkingHours('540');
+        } else {
+            // 中班不可沿用白班留下的時間。
+            // 有上一筆時只由 fetchLastRecord() 帶入本筆開始時間。
+            document.getElementById('startTime').value = '';
+            document.getElementById('endTime').value = '';
+            setWorkingHours('510');
         }
 
         // 如果機台已經有選好，立刻撈取上一筆資料
@@ -1746,6 +1765,13 @@ function fetchLastRecord() {
             if (data.endTime) {
                 startTimeEl.value = data.endTime;
                 lastRecordEndTime = data.endTime;
+
+                // 中班只帶「上一筆結算時間」作為本筆開始時間；
+                // 本筆結算時間必須由員工填寫。
+                if (shift === '中班') {
+                    document.getElementById('endTime').value = '';
+                    setWorkingHours('510');
+                }
             }
 
 
@@ -1790,44 +1816,6 @@ function fetchLastRecord() {
             }, 4000);
 
 
-            // -------------------------------------------------
-            // 自動移動游標
-            // -------------------------------------------------
-
-            setTimeout(() => {
-
-                const endTimeEl =
-                    document.getElementById('endTime');
-
-                const qtyEl =
-                    document.getElementById('qty');
-
-
-                // 結算時間尚未填寫
-                // → 游標移到結算時間
-                //
-                // 已經有結算時間
-                // → 游標移到完成數量
-
-                let targetField =
-                    (!endTimeEl.value.trim())
-                        ? endTimeEl
-                        : qtyEl;
-
-
-                if (targetField) {
-
-                    targetField.focus();
-
-                    targetField.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'center'
-                    });
-                }
-
-            }, 100);
-
-
         } else {
 
             // =================================================
@@ -1843,6 +1831,10 @@ function fetchLastRecord() {
                 document.getElementById('startTime').value = '08:00';
                 document.getElementById('endTime').value = '17:00';
                 setWorkingHours('540');
+            } else if (shift === '中班') {
+                document.getElementById('startTime').value = '';
+                document.getElementById('endTime').value = '';
+                setWorkingHours('510');
             }
         }
     })
@@ -2463,7 +2455,7 @@ function fetchLastRecord() {
 
         // 生產批次為必填：正式 Batch ID 或「無批次ID」都必須明確選擇。
         if (!batchSelectionMade) {
-            alert("❌ 請選擇生產批次；若屬導入前舊批次，請選「無批次ID」。");
+            alert("❌ 請確認生產批次；若屬導入前舊批次，請選「無批次ID」。");
             const batchArea = document.getElementById('batchChoiceList');
             if (batchArea) {
                 batchArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
