@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CNC 生產日報回報系統</title>
-    <!-- 測速版：已移除 LINE LIFF SDK -->
-<style>
+
+    <style>
         body {
             font-family: Arial, sans-serif;
             background-color: #f4f7f6;
@@ -394,45 +394,15 @@
             opacity: .75;
         }
 
-    
-        /* 輕量登入畫面 */
-        #loginView {
-            max-width: 520px;
-            margin: 0 auto;
-        }
 
-        #loginView .form-group {
-            margin-bottom: 18px;
-        }
-
-        #loginView input {
-            width: 100%;
-            box-sizing: border-box;
-            font-size: 18px;
-            padding: 12px 14px;
-        }
-
-        .light-login-btn {
-            width: 100%;
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 13px 16px;
-            font-size: 18px;
-            font-weight: bold;
-            border-radius: 6px;
-            cursor: pointer;
-            margin-top: 4px;
-        }
-
-        .light-login-btn:hover {
-            background: #0056b3;
-        }
-
-        .light-login-btn:disabled {
-            background: #cccccc;
-            cursor: not-allowed;
-        }
+        /* 每次開啟登入畫面 */
+        #loginView { max-width: 520px; margin: 0 auto; text-align: left; padding: 20px; }
+        #loginView h2 { text-align: center; }
+        #loginView .form-group { margin-bottom: 18px; }
+        #loginView input { width:100%; box-sizing:border-box; font-size:18px; padding:12px 14px; }
+        .light-login-btn { width:100%; background:#007bff; color:white; border:none; padding:13px 16px; font-size:18px; font-weight:bold; border-radius:6px; cursor:pointer; margin-top:4px; }
+        .light-login-btn:hover { background:#0056b3; }
+        .light-login-btn:disabled { background:#cccccc; cursor:not-allowed; }
 
     </style>
 </head>
@@ -441,7 +411,7 @@
 
 <div class="container">
 
-    <!-- 輕量登入 -->
+    <!-- 每次開啟皆需登入：員工代碼 + PIN -->
     <div id="loginView">
         <h2>CNC 生產日報回報系統</h2>
         <p id="loginMsg" style="text-align:center;color:#666;">請輸入員工代碼與 PIN</p>
@@ -461,7 +431,6 @@
     <!-- 原始表單畫面 (預設隱藏，通過驗證後顯示) -->
     <div id="mainFormView" style="display: none;">
         <h2>CNC 生產日報回報</h2>
-        <div style="text-align:center;color:#b26a00;font-size:13px;margin:-10px 0 15px;">⚡ 每次開啟登入版 FINAL</div>
 
         <div id="successBanner" role="status" aria-live="polite"></div>
 
@@ -775,7 +744,7 @@
 
         </form>
 
-        <!-- 測速版停用管理員功能（無 LINE 身分可驗證） -->
+        <!-- 僅管理員可見 -->
         <div id="adminPanel">
             <h3>⚙️ 系統管理</h3>
             <div class="time-hint">僅限管理員操作</div>
@@ -808,6 +777,7 @@
 
    const GAS_WEB_APP_URL =
         "https://script.google.com/macros/s/AKfycbyFe5bvS0PXwFUzI5Uoevfd5yihoDV0-8DnGx4NB0ICWP3Vz7zA77NnZwjC0_Ac0szj/exec";
+
 // =========================================================
 // 取得目前「生產日期」
 // 每天凌晨 04:30 前仍歸屬前一天
@@ -862,19 +832,18 @@ function getProductionDateMMDD() {
     let currentRequestId = null;
     let pendingFormData = null;
     let successBannerTimer = null;
+
+
     // =========================================================
-    // 頁面初始化（輕量登入版）
+    // 頁面初始化：每次開啟 / 重新整理都重新登入
     // =========================================================
-    const LIGHT_LOGIN_STORAGE_KEY = 'cncLightLoginToken';
     let lightLoginToken = '';
 
     window.onload = function () {
         initializeLightLogin();
     };
 
-    async function initializeLightLogin() {
-        // 每次開啟 / 重新整理都重新登入。
-        // 登入成功前，絕不顯示日報主畫面，也不載入機台 / 件號。
+    function initializeLightLogin() {
         lightLoginToken = '';
         userProfile = {};
         realEmployeeName = '';
@@ -883,17 +852,8 @@ function getProductionDateMMDD() {
         document.getElementById('mainFormView').style.display = 'none';
         document.getElementById('loginView').style.display = 'block';
         document.getElementById('date').value = getProductionDateMMDD();
-
-        showLightLogin();
-    }
-
-    function showLightLogin(message) {
-        const machineError = document.getElementById('machineError');
-        if (machineError) machineError.style.display = 'none';
-        document.getElementById('mainFormView').style.display = 'none';
-        document.getElementById('loginView').style.display = 'block';
         document.getElementById('loginSpinner').style.display = 'none';
-        document.getElementById('loginMsg').textContent = message || '請輸入員工代碼與 PIN';
+        document.getElementById('loginMsg').textContent = '請輸入員工代碼與 PIN';
         setTimeout(() => document.getElementById('employeeCode').focus(), 50);
     }
 
@@ -913,70 +873,39 @@ function getProductionDateMMDD() {
         document.getElementById('loginMsg').textContent = '正在驗證...';
 
         try {
-            // 使用輕量登入專用 API，不進入日報 POST 驗證流程
-            const url =
-                `${GAS_WEB_APP_URL}?action=lightLogin` +
+            const url = `${GAS_WEB_APP_URL}?action=lightLogin` +
                 `&employeeCode=${encodeURIComponent(code)}` +
                 `&pin=${encodeURIComponent(pin)}` +
                 `&_=${Date.now()}`;
-
             const data = await fetchGasJsonWithRetry(url, '員工登入');
-
             if (!data || data.success !== true || !data.loginToken) {
                 throw new Error((data && data.message) || '登入失敗');
             }
 
+            lightLoginToken = data.loginToken;
+            userProfile = { userId: data.employeeCode || code };
+            realEmployeeName = data.employeeName || data.employeeCode || code;
+            isCurrentUserAdmin = data.isAdmin === true;
+
             document.getElementById('employeePin').value = '';
-            enterReportAfterLightLogin(data.loginToken, data);
+            document.getElementById('loginView').style.display = 'none';
+            document.getElementById('mainFormView').style.display = 'block';
+            document.getElementById('userInfo').textContent = '👤 登入身分：' + realEmployeeName;
 
+            const adminPanel = document.getElementById('adminPanel');
+            if (adminPanel) adminPanel.style.display = 'none';
+
+            setDefaultInvalidItems();
+            fetchOptions();
+            checkAddButtonState();
+            setTimeout(() => machineInput.focus(), 50);
         } catch (err) {
-            let msg = (err && err.message) ? err.message : '登入失敗，請稍後再試。';
-
-            // 登入頁不顯示任何「機台驗證」訊息；那代表後端仍是舊部署版本。
-            if (msg.includes('機台編號')) {
-                msg = '登入 API 尚未更新，請重新部署最新版 GAS 後再試。';
-            }
-
-            document.getElementById('loginMsg').textContent = '❌ ' + msg;
+            document.getElementById('loginMsg').textContent = '❌ ' + ((err && err.message) || '登入失敗，請稍後再試。');
         } finally {
             btn.disabled = false;
             btn.textContent = '登入';
             document.getElementById('loginSpinner').style.display = 'none';
         }
-    }
-
-    function enterReportAfterLightLogin(token, data) {
-        lightLoginToken = token;
-        userProfile = { userId: data.employeeCode || '' };
-        realEmployeeName = data.employeeName || data.employeeCode || '';
-        isCurrentUserAdmin = data.isAdmin === true;
-
-        document.getElementById('loginView').style.display = 'none';
-        document.getElementById('mainFormView').style.display = 'block';
-
-        // 輕量登入版先維持原本管理工具隱藏，不改其他管理功能。
-        const adminPanel = document.getElementById('adminPanel');
-        if (adminPanel) adminPanel.style.display = 'none';
-
-        document.getElementById('userInfo').textContent =
-            '👤 登入身分：' + realEmployeeName;
-
-        // 以下沿用原日報初始化順序，不改機台 / 件號 / 批次 / 無效工時邏輯。
-        setDefaultInvalidItems();
-        fetchOptions();
-        checkAddButtonState();
-
-        setTimeout(() => {
-            if (machineInput) machineInput.focus();
-        }, 50);
-    }
-
-    function logoutLightLogin() {
-        lightLoginToken = '';
-        userProfile = {};
-        realEmployeeName = '';
-        isCurrentUserAdmin = false;
-        location.reload();
     }
 
     document.addEventListener('keydown', function(event) {
@@ -992,7 +921,7 @@ function getProductionDateMMDD() {
     // GAS GET 共用背景重試
     // 404 / 429 / 5xx / 暫時性網路異常：
     // 第一次失敗等 1 秒，第二次失敗等 2 秒，最多 3 次。
-    // 不重新整理整個頁面，避免 LIFF 重跑及使用者已填資料遺失。
+    // 不重新整理整個頁面，避免整頁重跑及使用者已填資料遺失。
     // =========================================================
     async function fetchGasJsonWithRetry(url, label = 'GAS GET') {
         const MAX_ATTEMPTS = 3;
@@ -2557,7 +2486,13 @@ function fetchLastRecord() {
 
     document.getElementById('reportForm').addEventListener('submit', function (e) {
         e.preventDefault();
-const machine = machineInput.value.trim();
+
+        if (!userProfile.userId) {
+            alert("⚠️ 尚未取得 LINE 身分識別，請重新整理頁面！");
+            return;
+        }
+
+        const machine = machineInput.value.trim();
         if (!machine || !selectedMachine || machine !== selectedMachine) {
             document.getElementById('machineError').style.display = 'block';
             alert("❌ 請從機台清單中選擇有效的機台！");
@@ -2858,11 +2793,6 @@ const machine = machineInput.value.trim();
             submitBtn.textContent = "確認送出";
 
             if (data && data.success === false) {
-                if (data.needLogin === true) {
-                    alert(data.message || "登入已失效，請重新登入。");
-                    location.reload();
-                    return;
-                }
                 alert(data.message || "❌ 回報失敗，資料未寫入。");
                 return;
             }
