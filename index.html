@@ -1079,6 +1079,28 @@ function checkUserPermission(userId, displayName) {
 
 
     // =========================================================
+    // 白班時間保護
+    // 只在欄位為空時補值，不覆蓋員工手動修改或上一筆結算時間。
+    // =========================================================
+    function ensureWhiteShiftTimes() {
+        const shiftEl = document.getElementById('shift');
+        const dayBtn = document.getElementById('dayShiftBtn');
+        const isDayShift =
+            (shiftEl && shiftEl.value === '白班') ||
+            (dayBtn && dayBtn.classList.contains('active-day'));
+
+        if (!isDayShift) return;
+
+        const startEl = document.getElementById('startTime');
+        const endEl = document.getElementById('endTime');
+
+        if (startEl && !startEl.value.trim()) startEl.value = '08:00';
+        if (endEl && !endEl.value.trim()) endEl.value = '17:00';
+        setWorkingHours('540');
+    }
+
+
+    // =========================================================
     // 選擇機台邏輯
     // =========================================================
 
@@ -1093,27 +1115,20 @@ function checkUserPermission(userId, displayName) {
         selectedPart = "";
         batchLookupRequestSeq++;
         resetBatchLink();
-        document.getElementById('startTime').value = '';
-        document.getElementById('endTime').value = '';
-
-        // 直接從目前班別欄位讀值。
-        // 注意：這裡不能使用未宣告的 currentShift，否則第二筆之後選機台時
-        // 會在清空時間後拋出 ReferenceError，導致 08:00/17:00 與上一筆查詢都不再執行。
         const selectedShift = document.getElementById('shift').value;
 
-        // 白班預設時間：每次選機台都先恢復 08:00～17:00。
-        // 若此機台當天已有上一筆紀錄，fetchLastRecord() 再以
-        // 「上一筆結算時間」覆蓋本次開始時間。
-        if (selectedShift === '白班') {
-            document.getElementById('startTime').value = '08:00';
-            document.getElementById('endTime').value = '17:00';
-            setWorkingHours('540');
+        // 中班仍由員工/上一筆資料決定時間；白班不再先清空再補值，
+        // 避免任何後續事件或非同步流程把欄位留在空白狀態。
+        if (selectedShift === '中班') {
+            document.getElementById('startTime').value = '';
+            document.getElementById('endTime').value = '';
+        } else {
+            ensureWhiteShiftTimes();
         }
 
         document.getElementById('unitSeconds').value = '';
         lastRecordEndTime = null;
 
-        // 班別已選好才查上一筆
         if (selectedShift) {
             fetchLastRecord();
         }
@@ -1130,6 +1145,7 @@ function checkUserPermission(userId, displayName) {
         partList.style.display = 'none';
         document.getElementById('partError').style.display = 'none';
         isUserTypingPart = false;
+        ensureWhiteShiftTimes();
         fetchOpenBatchesForPart(item);
     }
 
@@ -1174,6 +1190,8 @@ function checkUserPermission(userId, displayName) {
             btn.classList.remove('selected');
         });
         if (button) button.classList.add('selected');
+
+        ensureWhiteShiftTimes();
 
         const status = document.getElementById('batchStatus');
 
@@ -2799,9 +2817,7 @@ function fetchLastRecord() {
             // 白班下一台先恢復標準預設值；選機台後若有上一筆，
             // fetchLastRecord() 會再用上一筆結算時間覆蓋開始時間。
             if (currentShift === '白班') {
-                document.getElementById('startTime').value = '08:00';
-                document.getElementById('endTime').value = '17:00';
-                setWorkingHours('540');
+                ensureWhiteShiftTimes();
             }
         }
 
