@@ -364,7 +364,39 @@
         .batch-status { font-size:13px; line-height:1.5; margin-top:6px; color:#66788a; }
         .batch-status.ok { color:#1f7a3f; font-weight:bold; }
         .batch-status.warn { color:#a66a00; font-weight:bold; }
-        #batchSelect { margin-top:7px; }
+
+        .batch-choice-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 7px;
+        }
+        .batch-choice-btn {
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            border-radius: 7px;
+            padding: 11px 12px;
+            text-align: left;
+            font-size: 16px;
+            line-height: 1.35;
+            color: #263238;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        .batch-choice-btn.selected {
+            border: 2px solid #1976d2;
+            background: #eaf4ff;
+            font-weight: bold;
+        }
+        .batch-choice-btn.legacy {
+            background: #fffaf0;
+        }
+        .batch-choice-btn:disabled {
+            cursor: default;
+            opacity: .75;
+        }
+
     </style>
 </head>
 
@@ -472,9 +504,9 @@
             <div class="form-group">
                 <label for="batchSelect">生產批次（選填）：</label>
                 <div class="batch-link-box">
-                    <select id="batchSelect" disabled>
-                        <option value="">請先選擇件號</option>
-                    </select>
+                    <div id="batchChoiceList" class="batch-choice-list">
+                        <button type="button" class="batch-choice-btn" disabled>請先選擇件號</button>
+                    </div>
                     <input type="hidden" id="operation" value="">
                     <div id="batchStatus" class="batch-status">
                         💡 選擇件號後，系統會自動查詢尚未完成的生產批次。
@@ -1062,6 +1094,14 @@ function checkUserPermission(userId, displayName) {
         resetBatchLink();
         document.getElementById('startTime').value = '';
         document.getElementById('endTime').value = '';
+
+        // 白班預設時間：每次選機台都先恢復 08:00～17:00。
+        // 若此機台當天已有上一筆紀錄，後續 getLastRecord 仍會以
+        // 「上一筆結束時間」覆蓋開始時間，因此原本的接續回報邏輯不變。
+        if (currentShift === '白班') {
+            document.getElementById('startTime').value = '08:00';
+            document.getElementById('endTime').value = '17:00';
+        }
         document.getElementById('unitSeconds').value = '';
         lastRecordEndTime = null;
 
@@ -1087,22 +1127,21 @@ function checkUserPermission(userId, displayName) {
 
 
     // =========================================================
-    // 生產批次關聯
-    // 0批：可直接回報；1批：自動帶入；2批以上：人工選擇
+    // 生產批次關聯：改用直接點選卡片，避免原生 select 展開/收合造成畫面跳動
+    // 0批：無批次ID；1批：預設正式批次；2批以上：請員工點選
+    // 導入期間皆保留「無批次ID（導入前舊批次）」
     // =========================================================
 
     function resetBatchLink(message) {
         selectedBatchId = "";
         currentOperation = "";
 
-        const select = document.getElementById('batchSelect');
+        const list = document.getElementById('batchChoiceList');
         const status = document.getElementById('batchStatus');
         const op = document.getElementById('operation');
 
-        if (select) {
-            select.innerHTML = '<option value="">尚未關聯批次</option>';
-            select.value = '';
-            select.disabled = true;
+        if (list) {
+            list.innerHTML = '<button type="button" class="batch-choice-btn" disabled>請先選擇件號</button>';
         }
         if (op) op.value = '';
         if (status) {
@@ -1118,6 +1157,38 @@ function checkUserPermission(userId, displayName) {
         return parts.filter(Boolean).join('｜');
     }
 
+    function setBatchChoice(batchId, button) {
+        selectedBatchId = String(batchId || '').trim();
+
+        document.querySelectorAll('#batchChoiceList .batch-choice-btn').forEach(btn => {
+            btn.classList.remove('selected');
+        });
+        if (button) button.classList.add('selected');
+
+        const status = document.getElementById('batchStatus');
+
+        if (selectedBatchId) {
+            status.className = 'batch-status ok';
+            status.textContent =
+                `✅ 已選擇批次 ${selectedBatchId}` +
+                (currentOperation ? `｜工序 ${currentOperation}` : '');
+        } else {
+            status.className = 'batch-status warn';
+            status.textContent = '⚠️ 已選擇「無批次ID（導入前舊批次）」。';
+        }
+    }
+
+    function makeBatchChoiceButton(text, batchId, options = {}) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'batch-choice-btn' + (options.legacy ? ' legacy' : '');
+        btn.textContent = text;
+        btn.addEventListener('click', function () {
+            setBatchChoice(batchId, btn);
+        });
+        return btn;
+    }
+
     function fetchOpenBatchesForPart(part) {
         const partValue = String(part || '').trim();
         if (!partValue) {
@@ -1126,14 +1197,13 @@ function checkUserPermission(userId, displayName) {
         }
 
         const requestSeq = ++batchLookupRequestSeq;
-        const select = document.getElementById('batchSelect');
+        const list = document.getElementById('batchChoiceList');
         const status = document.getElementById('batchStatus');
 
         selectedBatchId = '';
         currentOperation = '';
 
-        select.disabled = true;
-        select.innerHTML = '<option value="">查詢中...</option>';
+        list.innerHTML = '<button type="button" class="batch-choice-btn" disabled>查詢中...</button>';
         status.className = 'batch-status';
         status.textContent = '⏳ 正在查詢可關聯的生產批次...';
 
@@ -1152,87 +1222,67 @@ function checkUserPermission(userId, displayName) {
             const batches = (data && data.success && Array.isArray(data.batches))
                 ? data.batches : [];
 
-            select.innerHTML = '';
+            list.innerHTML = '';
 
             if (batches.length === 0) {
-                select.innerHTML = '<option value="">無批次ID（導入前舊批次）</option>';
-                select.disabled = true;
+                const legacyBtn = makeBatchChoiceButton(
+                    '無批次ID（導入前舊批次）', '', { legacy: true }
+                );
+                legacyBtn.classList.add('selected');
+                list.appendChild(legacyBtn);
                 selectedBatchId = '';
+
                 status.className = 'batch-status warn';
                 status.textContent = '⚠️ 此件號目前沒有尚未完成的生產批次；本筆將以「無批次ID」回報。';
                 return;
             }
 
-            if (batches.length === 1) {
-                const b = batches[0];
-
-                const opt = document.createElement('option');
-                opt.value = b.batchId;
-                opt.textContent = batchOptionText(b);
-                select.appendChild(opt);
-
-                const noBatchOpt = document.createElement('option');
-                noBatchOpt.value = '';
-                noBatchOpt.textContent = '無批次ID（導入前舊批次）';
-                select.appendChild(noBatchOpt);
-
-                // 只有一個正式批次時仍預設自動帶入，但允許員工改選舊批次。
-                select.value = b.batchId;
-                select.disabled = false;
-                selectedBatchId = b.batchId;
-
-                status.className = 'batch-status ok';
-                status.textContent = `✅ 已自動關聯批次 ${b.batchId}；若本次加工屬於導入前舊料，可改選「無批次ID」。` +
-                    (currentOperation ? `｜工序 ${currentOperation}` : '');
-                return;
-            }
-
-            const placeholder = document.createElement('option');
-            placeholder.value = '';
-            placeholder.textContent = `找到 ${batches.length} 個批次，請選擇`;
-            select.appendChild(placeholder);
-
             batches.forEach(b => {
-                const opt = document.createElement('option');
-                opt.value = b.batchId;
-                opt.textContent = batchOptionText(b);
-                select.appendChild(opt);
+                list.appendChild(
+                    makeBatchChoiceButton(batchOptionText(b), b.batchId)
+                );
             });
 
-            const noBatchOpt = document.createElement('option');
-            noBatchOpt.value = '';
-            noBatchOpt.textContent = '無批次ID（導入前舊批次）';
-            select.appendChild(noBatchOpt);
+            const legacyBtn = makeBatchChoiceButton(
+                '無批次ID（導入前舊批次）', '', { legacy: true }
+            );
+            list.appendChild(legacyBtn);
 
-            select.disabled = false;
-            selectedBatchId = '';
-            status.className = 'batch-status warn';
-            status.textContent = `⚠️ 找到 ${batches.length} 個尚未完成批次，請確認本次加工屬於哪一批。` +
-                (currentOperation ? `｜工序 ${currentOperation}` : '');
+            if (batches.length === 1) {
+                // 只有一個正式批次：維持原本自動帶入邏輯。
+                const firstBtn = list.querySelector('.batch-choice-btn');
+                firstBtn.classList.add('selected');
+                selectedBatchId = batches[0].batchId;
+
+                status.className = 'batch-status ok';
+                status.textContent =
+                    `✅ 已自動關聯批次 ${batches[0].batchId}；若本次加工屬於導入前舊料，可改選「無批次ID」。` +
+                    (currentOperation ? `｜工序 ${currentOperation}` : '');
+            } else {
+                // 多個正式批次：不預選，避免誤連。
+                selectedBatchId = '';
+                status.className = 'batch-status warn';
+                status.textContent =
+                    `⚠️ 找到 ${batches.length} 個尚未完成批次，請直接點選本次加工批次；若為舊料則選「無批次ID」。` +
+                    (currentOperation ? `｜工序 ${currentOperation}` : '');
+            }
         })
         .catch(err => {
             if (requestSeq !== batchLookupRequestSeq) return;
             console.warn('查詢生產批次失敗', err);
-            select.innerHTML = '<option value="">批次查詢失敗（仍可回報）</option>';
-            select.disabled = true;
+
+            list.innerHTML = '';
+            const legacyBtn = makeBatchChoiceButton(
+                '無批次ID（批次查詢失敗）', '', { legacy: true }
+            );
+            legacyBtn.classList.add('selected');
+            list.appendChild(legacyBtn);
             selectedBatchId = '';
+
             status.className = 'batch-status warn';
-            status.textContent = '⚠️ 暫時無法取得批次資料；本筆仍可送出，Batch ID 會留空。';
+            status.textContent = '⚠️ 暫時無法取得批次資料；本筆仍可送出。';
         });
     }
-
-    document.getElementById('batchSelect').addEventListener('change', function () {
-        selectedBatchId = String(this.value || '').trim();
-        const status = document.getElementById('batchStatus');
-        if (selectedBatchId) {
-            status.className = 'batch-status ok';
-            status.textContent = `✅ 已選擇批次 ${selectedBatchId}` +
-                (currentOperation ? `｜工序 ${currentOperation}` : '');
-        } else {
-            status.className = 'batch-status warn';
-            status.textContent = '⚠️ 已選擇「無批次ID（導入前舊批次）」。';
-        }
-    });
 
 
     // =========================================================
