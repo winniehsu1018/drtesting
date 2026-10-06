@@ -500,9 +500,9 @@
                 </div>
             </div>
 
-            <!-- 生產批次關聯：導入期為選填 -->
+            <!-- 生產批次關聯：0批次自動無批次ID；有正式批次時必須確認 -->
             <div class="form-group">
-                <label for="batchSelect">生產批次（選填）：</label>
+                <label for="batchSelect">生產批次（請確認）：</label>
                 <div class="batch-link-box">
                     <div id="batchChoiceList" class="batch-choice-list">
                         <button type="button" class="batch-choice-btn" disabled>請先選擇件號</button>
@@ -1152,7 +1152,7 @@ function checkUserPermission(userId, displayName) {
 
     // =========================================================
     // 生產批次關聯：改用直接點選卡片，避免原生 select 展開/收合造成畫面跳動
-    // 0批：無批次ID；1批：預設正式批次；2批以上：請員工點選
+    // 0批：自動無批次ID；1批以上：請員工明確點選正式批次或無批次ID
     // 導入期間皆保留「無批次ID（導入前舊批次）」
     // =========================================================
 
