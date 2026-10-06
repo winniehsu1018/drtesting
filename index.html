@@ -881,54 +881,33 @@ function getProductionDateMMDD() {
             return;
         }
 
-        // 有簽章 token 就先直接進日報，避免每次開啟都卡在登入頁。
-        // 後端仍會在背景驗證；日報送出時 GAS 也會再次驗證 token。
-        const cachedIdentity = {
-            success: true,
-            authorized: true,
-            employeeCode: localStorage.getItem('cncLightEmployeeCode') || '',
-            employeeName: localStorage.getItem('cncLightEmployeeName') || '',
-            isAdmin: localStorage.getItem('cncLightIsAdmin') === '1'
-        };
-
-        enterReportAfterLightLogin(savedToken, cachedIdentity);
+        document.getElementById('loginMsg').textContent = '正在自動登入...';
+        document.getElementById('loginSpinner').style.display = 'block';
 
         try {
-            const url = `${GAS_WEB_APP_URL}?action=checkLightLogin` +
-                        `&loginToken=${encodeURIComponent(savedToken)}` +
-                        `&_=${Date.now()}`;
+            const url =
+                `${GAS_WEB_APP_URL}?action=checkLightLogin` +
+                `&loginToken=${encodeURIComponent(savedToken)}` +
+                `&_=${Date.now()}`;
 
-            const data = await fetchGasJsonWithRetry(url, '快速登入');
+            const data = await fetchGasJsonWithRetry(url, '自動登入');
 
             if (!data || data.success !== true || data.authorized !== true) {
                 throw new Error('登入已失效');
             }
 
-            // 背景驗證成功後同步最新姓名 / 權限
             localStorage.setItem('cncLightEmployeeCode', data.employeeCode || '');
             localStorage.setItem('cncLightEmployeeName', data.employeeName || '');
             localStorage.setItem('cncLightIsAdmin', data.isAdmin === true ? '1' : '0');
 
-            realEmployeeName = data.employeeName || data.employeeCode || '';
-            userProfile = { userId: data.employeeCode || '' };
-            isCurrentUserAdmin = data.isAdmin === true;
-
-            const userInfo = document.getElementById('userInfo');
-            if (userInfo) {
-                userInfo.innerHTML =
-                    `👤 登入身分：${escapeHtml(realEmployeeName)} ` +
-                    `<button type="button" onclick="logoutLightLogin()" ` +
-                    `style="width:auto;padding:5px 10px;margin-left:8px;font-size:12px;background:#777;">更換使用者</button>`;
-            }
+            enterReportAfterLightLogin(savedToken, data);
 
         } catch (err) {
-            console.warn('背景登入驗證失敗：', err);
             localStorage.removeItem(LIGHT_LOGIN_STORAGE_KEY);
             localStorage.removeItem('cncLightEmployeeCode');
             localStorage.removeItem('cncLightEmployeeName');
             localStorage.removeItem('cncLightIsAdmin');
-            alert('登入已失效，請重新登入。');
-            location.reload();
+            showLightLogin('登入已失效，請重新登入。');
         }
     }
 
@@ -958,14 +937,17 @@ function getProductionDateMMDD() {
         document.getElementById('loginMsg').textContent = '正在驗證...';
 
         try {
-            // 使用輕量登入專用 API，不進入日報 POST 驗證流程
-            const url =
-                `${GAS_WEB_APP_URL}?action=lightLogin` +
-                `&employeeCode=${encodeURIComponent(code)}` +
-                `&pin=${encodeURIComponent(pin)}` +
-                `&_=${Date.now()}`;
+            const res = await fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: {'Content-Type': 'text/plain;charset=utf-8'},
+                body: JSON.stringify({
+                    action: 'lightLogin',
+                    employeeCode: code,
+                    pin: pin
+                })
+            });
 
-            const data = await fetchGasJsonWithRetry(url, '員工登入');
+            const data = await res.json();
 
             if (!data || data.success !== true || !data.loginToken) {
                 throw new Error((data && data.message) || '登入失敗');
@@ -980,14 +962,8 @@ function getProductionDateMMDD() {
             enterReportAfterLightLogin(data.loginToken, data);
 
         } catch (err) {
-            let msg = (err && err.message) ? err.message : '登入失敗，請稍後再試。';
-
-            // 登入頁不顯示任何「機台驗證」訊息；那代表後端仍是舊部署版本。
-            if (msg.includes('機台編號')) {
-                msg = '登入 API 尚未更新，請重新部署最新版 GAS 後再試。';
-            }
-
-            document.getElementById('loginMsg').textContent = '❌ ' + msg;
+            document.getElementById('loginMsg').textContent =
+                '❌ ' + ((err && err.message) || '登入失敗，請稍後再試。');
         } finally {
             btn.disabled = false;
             btn.textContent = '登入';
@@ -1017,7 +993,7 @@ function getProductionDateMMDD() {
 
         setDefaultInvalidItems();
 
-        fetchOptions().then(() => {
+        Promise.resolve(fetchOptions()).finally(() => {
             checkAddButtonState();
             setTimeout(() => {
                 if (machineInput) machineInput.focus();
@@ -1731,64 +1707,103 @@ function checkUserPermission(userId, displayName) {
     // 取得機台 / 品號清單
     // =========================================================
 
-async function fetchOptions() {
-    // 先使用手機 / 瀏覽器內既有機台快取，讓機台搜尋可以立即使用
-    const cachedMachines = localStorage.getItem('cached_machines');
+function fetchOptions() {
+
+    // =====================================================
+    // 1. 機台清單先從 localStorage 立即載入
+    //    不等待 GAS 回應
+    // =====================================================
+
+    const cachedMachines =
+        localStorage.getItem('cached_machines');
+
     if (cachedMachines) {
         try {
-            const parsedMachines = JSON.parse(cachedMachines);
+            const parsedMachines =
+                JSON.parse(cachedMachines);
+
             if (Array.isArray(parsedMachines)) {
-                allMachines = parsedMachines.map(m => String(m).trim()).filter(Boolean);
+                allMachines = parsedMachines
+                    .map(m => String(m).trim())
+                    .filter(Boolean);
             }
+
         } catch (e) {
-            console.warn('本地機台快取解析失敗', e);
+            console.error(
+                "⚠️ 本地機台快取解析失敗",
+                e
+            );
+
+            allMachines = [];
         }
     }
 
-    try {
-        const url = `${GAS_WEB_APP_URL}?action=getOptions&_=${Date.now()}`;
-        const data = await fetchGasJsonWithRetry(url, 'getOptions');
 
-        if (!data || data.success === false) {
-            throw new Error((data && data.message) || 'GAS 未回傳選單資料');
-        }
+    // =====================================================
+    // 2. 背景向 GAS 取得最新資料
+    // =====================================================
 
-        const latestMachines = Array.isArray(data.machines)
-            ? data.machines.map(m => String(m).trim()).filter(Boolean)
-            : [];
+    const url =
+        `${GAS_WEB_APP_URL}?action=getOptions&_=${Date.now()}`;
 
-        const latestParts = Array.isArray(data.parts)
-            ? data.parts.map(p => String(p).trim()).filter(Boolean)
-            : [];
+    return fetchGasJsonWithRetry(
+        url,
+        'getOptions'
+    )
+    .then(data => {
+
+        // =================================================
+        // 3. GAS 回來後，用最新機台清單更新 allMachines
+        // =================================================
+
+        const latestMachines =
+            (data.machines || [])
+                .map(m => String(m).trim())
+                .filter(Boolean);
 
         if (latestMachines.length > 0) {
+
             allMachines = latestMachines;
-            localStorage.setItem('cached_machines', JSON.stringify(latestMachines));
+
+            // 同步更新 localStorage
+            localStorage.setItem(
+                'cached_machines',
+                JSON.stringify(latestMachines)
+            );
+
+            // 保留原本版本資訊
+            if (data.version) {
+                localStorage.setItem(
+                    'cached_version',
+                    data.version
+                );
+            }
         }
 
-        allParts = latestParts;
 
-        if (data.version) {
-            localStorage.setItem('cached_version', data.version);
-        }
+        // =================================================
+        // 4. 件號 / 品名維持原本方式
+        //    不存 localStorage
+        //    仍由 GAS CacheService 管理
+        // =================================================
 
-        console.log(`✅ 選單載入完成：機台 ${allMachines.length} 台；件號 ${allParts.length} 筆`);
+        allParts =
+            (data.parts || [])
+                .map(p => String(p).trim())
+                .filter(Boolean);
 
-        // 清掉登入過程中可能留下的舊驗證錯誤
-        const machineError = document.getElementById('machineError');
-        const partError = document.getElementById('partError');
-        if (machineError) machineError.style.display = 'none';
-        if (partError) partError.style.display = 'none';
+    })
+    .catch(err => {
 
-        return true;
+        console.error(
+            "⚠️ 無法取得最新選單資料，機台繼續使用本地快取",
+            err
+        );
 
-    } catch (err) {
-        console.error('❌ 選單載入失敗：', err);
-        alert('⚠️ 機台／件號清單載入失敗：' + (err.message || err));
-        return false;
-    }
+        // 不需要再做其他處理
+        // 因為機台清單一開始就已經從 localStorage 載入
+    });
 }
-
     // =========================================================
     // 取得上一筆資料 (已完全移除應有工時帶入)
     // =========================================================
@@ -2232,8 +2247,6 @@ function fetchLastRecord() {
     let machineCurrentFocus = -1;
 
     machineInput.addEventListener('focus', function () {
-        if (this.value.trim() || allMachines.length === 0) return;
-
         machineList.innerHTML = '';
         machineCurrentFocus = -1;
 
@@ -2241,14 +2254,14 @@ function fetchLastRecord() {
             const div = document.createElement('div');
             div.className = 'dropdown-item';
             div.textContent = item;
-            div.addEventListener('mousedown', function(e) {
+            div.addEventListener('mousedown', function (e) {
                 e.preventDefault();
                 selectMachine(item);
             });
             machineList.appendChild(div);
         });
 
-        if (allMachines.length > 0) machineList.style.display = 'block';
+        machineList.style.display = allMachines.length > 0 ? 'block' : 'none';
     });
 
     machineInput.addEventListener('input', function () {
@@ -2334,26 +2347,6 @@ function fetchLastRecord() {
     const partList = document.getElementById('partList');
     let partCurrentFocus = -1;
 
-    partInput.addEventListener('focus', function () {
-        if (this.value.trim() || allParts.length === 0) return;
-
-        partList.innerHTML = '';
-        partCurrentFocus = -1;
-
-        allParts.slice(0, 50).forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'dropdown-item';
-            div.textContent = item;
-            div.addEventListener('mousedown', function(e) {
-                e.preventDefault();
-                selectPart(item);
-            });
-            partList.appendChild(div);
-        });
-
-        if (allParts.length > 0) partList.style.display = 'block';
-    });
-
     partInput.addEventListener('keydown', function (e) {
         if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete') {
             isUserTypingPart = true;
@@ -2385,6 +2378,24 @@ function fetchLastRecord() {
         } else if (e.key === 'Enter') {
             return;
         }
+    });
+
+    partInput.addEventListener('focus', function () {
+        partList.innerHTML = '';
+        partCurrentFocus = -1;
+
+        allParts.slice(0, 50).forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'dropdown-item';
+            div.textContent = item;
+            div.addEventListener('mousedown', function (e) {
+                e.preventDefault();
+                selectPart(item);
+            });
+            partList.appendChild(div);
+        });
+
+        partList.style.display = allParts.length > 0 ? 'block' : 'none';
     });
 
     partInput.addEventListener('input', function () {
