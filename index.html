@@ -466,6 +466,13 @@
         <div id="successBanner" role="status" aria-live="polite"></div>
 
         <div id="userInfo">尚未登入</div>
+        <div id="accountControls" style="text-align:right; margin:6px 0 12px 0;">
+            <button type="button" id="switchUserBtn" onclick="logoutLightLogin()"
+                style="width:auto; padding:7px 12px; font-size:13px; background:#6c757d; color:#fff;
+                       border:none; border-radius:6px; cursor:pointer;">
+                登出／更換使用者
+            </button>
+        </div>
 
         <form
             id="reportForm"
@@ -1007,6 +1014,9 @@ function getProductionDateMMDD() {
         localStorage.removeItem('cncLightEmployeeName');
         localStorage.removeItem('cncLightIsAdmin');
         lightLoginToken = '';
+        userProfile = {};
+        realEmployeeName = '';
+        isCurrentUserAdmin = false;
         location.reload();
     }
 
