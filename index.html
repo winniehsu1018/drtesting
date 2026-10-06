@@ -809,6 +809,7 @@ function getProductionDateMMDD() {
     let selectedPart = "";
 
     let selectedBatchId = "";
+    let batchSelectionMade = false;
     let currentOperation = "";
     let batchLookupRequestSeq = 0;
 
@@ -1134,6 +1135,7 @@ function checkUserPermission(userId, displayName) {
 
     function resetBatchLink(message) {
         selectedBatchId = "";
+        batchSelectionMade = false;
         currentOperation = "";
 
         const list = document.getElementById('batchChoiceList');
@@ -1159,6 +1161,7 @@ function checkUserPermission(userId, displayName) {
 
     function setBatchChoice(batchId, button) {
         selectedBatchId = String(batchId || '').trim();
+        batchSelectionMade = true;
 
         document.querySelectorAll('#batchChoiceList .batch-choice-btn').forEach(btn => {
             btn.classList.remove('selected');
@@ -1201,6 +1204,7 @@ function checkUserPermission(userId, displayName) {
         const status = document.getElementById('batchStatus');
 
         selectedBatchId = '';
+        batchSelectionMade = false;
         currentOperation = '';
 
         list.innerHTML = '<button type="button" class="batch-choice-btn" disabled>查詢中...</button>';
@@ -1231,6 +1235,7 @@ function checkUserPermission(userId, displayName) {
                 legacyBtn.classList.add('selected');
                 list.appendChild(legacyBtn);
                 selectedBatchId = '';
+                batchSelectionMade = true;
 
                 status.className = 'batch-status warn';
                 status.textContent = '⚠️ 此件號目前沒有尚未完成的生產批次；本筆將以「無批次ID」回報。';
@@ -1253,6 +1258,7 @@ function checkUserPermission(userId, displayName) {
                 const firstBtn = list.querySelector('.batch-choice-btn');
                 firstBtn.classList.add('selected');
                 selectedBatchId = batches[0].batchId;
+                batchSelectionMade = true;
 
                 status.className = 'batch-status ok';
                 status.textContent =
@@ -1261,6 +1267,7 @@ function checkUserPermission(userId, displayName) {
             } else {
                 // 多個正式批次：不預選，避免誤連。
                 selectedBatchId = '';
+                batchSelectionMade = false;
                 status.className = 'batch-status warn';
                 status.textContent =
                     `⚠️ 找到 ${batches.length} 個尚未完成批次，請直接點選本次加工批次；若為舊料則選「無批次ID」。` +
@@ -1275,12 +1282,12 @@ function checkUserPermission(userId, displayName) {
             const legacyBtn = makeBatchChoiceButton(
                 '無批次ID（批次查詢失敗）', '', { legacy: true }
             );
-            legacyBtn.classList.add('selected');
             list.appendChild(legacyBtn);
             selectedBatchId = '';
+            batchSelectionMade = false;
 
             status.className = 'batch-status warn';
-            status.textContent = '⚠️ 暫時無法取得批次資料；本筆仍可送出。';
+            status.textContent = '⚠️ 暫時無法取得批次資料；請確認後點選「無批次ID（批次查詢失敗）」才能送出。';
         });
     }
 
@@ -2405,6 +2412,16 @@ function fetchLastRecord() {
             document.getElementById('partError').style.display = 'block';
             alert("❌ 請從品名清單中選擇有效的品名規格！");
             partInput.focus();
+            return;
+        }
+
+        // 生產批次為必填：正式 Batch ID 或「無批次ID」都必須明確選擇。
+        if (!batchSelectionMade) {
+            alert("❌ 請選擇生產批次；若屬導入前舊批次，請選「無批次ID」。");
+            const batchArea = document.getElementById('batchChoiceList');
+            if (batchArea) {
+                batchArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
             return;
         }
 
