@@ -358,6 +358,13 @@
         .admin-btn { width:100%; border:none; border-radius:5px; padding:11px; margin-top:8px; font-size:16px; font-weight:bold; cursor:pointer; background:#6c757d; color:white; }
         .admin-btn:disabled { background:#cccccc; }
         #adminStatus { margin-top:10px; font-size:13px; color:#666; line-height:1.5; }
+
+        /* 生產批次關聯 */
+        .batch-link-box { border:1px solid #d9e2ec; background:#f8fbff; border-radius:7px; padding:10px 12px; }
+        .batch-status { font-size:13px; line-height:1.5; margin-top:6px; color:#66788a; }
+        .batch-status.ok { color:#1f7a3f; font-weight:bold; }
+        .batch-status.warn { color:#a66a00; font-weight:bold; }
+        #batchSelect { margin-top:7px; }
     </style>
 </head>
 
@@ -458,6 +465,20 @@
                     id="partError"
                 >
                     ❌ 請從品名清單中選擇有效的品名規格
+                </div>
+            </div>
+
+            <!-- 生產批次關聯：導入期為選填 -->
+            <div class="form-group">
+                <label for="batchSelect">生產批次（選填）：</label>
+                <div class="batch-link-box">
+                    <select id="batchSelect" disabled>
+                        <option value="">請先選擇件號</option>
+                    </select>
+                    <input type="hidden" id="operation" value="">
+                    <div id="batchStatus" class="batch-status">
+                        💡 選擇件號後，系統會自動查詢尚未完成的生產批次。
+                    </div>
                 </div>
             </div>
 
@@ -755,6 +776,10 @@ function getProductionDateMMDD() {
     let selectedMachine = "";
     let selectedPart = "";
 
+    let selectedBatchId = "";
+    let currentOperation = "";
+    let batchLookupRequestSeq = 0;
+
     let lastRecordRequestSeq = 0;
 
     let currentRequestId = null;
@@ -1033,6 +1058,8 @@ function checkUserPermission(userId, displayName) {
         isUserTypingPart = false;
         document.getElementById('part').value = '';
         selectedPart = "";
+        batchLookupRequestSeq++;
+        resetBatchLink();
         document.getElementById('startTime').value = '';
         document.getElementById('endTime').value = '';
         document.getElementById('unitSeconds').value = '';
@@ -1055,7 +1082,143 @@ function checkUserPermission(userId, displayName) {
         partList.style.display = 'none';
         document.getElementById('partError').style.display = 'none';
         isUserTypingPart = false;
+        fetchOpenBatchesForPart(item);
     }
+
+
+    // =========================================================
+    // 生產批次關聯
+    // 0批：可直接回報；1批：自動帶入；2批以上：人工選擇
+    // =========================================================
+
+    function resetBatchLink(message) {
+        selectedBatchId = "";
+        currentOperation = "";
+
+        const select = document.getElementById('batchSelect');
+        const status = document.getElementById('batchStatus');
+        const op = document.getElementById('operation');
+
+        if (select) {
+            select.innerHTML = '<option value="">尚未關聯批次</option>';
+            select.value = '';
+            select.disabled = true;
+        }
+        if (op) op.value = '';
+        if (status) {
+            status.className = 'batch-status';
+            status.textContent = message || '💡 選擇件號後，系統會自動查詢尚未完成的生產批次。';
+        }
+    }
+
+    function batchOptionText(b) {
+        const parts = [b.batchId || ''];
+        if (b.lotNo) parts.push('批號 ' + b.lotNo);
+        if (b.workOrder) parts.push('工令 ' + b.workOrder);
+        return parts.filter(Boolean).join('｜');
+    }
+
+    function fetchOpenBatchesForPart(part) {
+        const partValue = String(part || '').trim();
+        if (!partValue) {
+            resetBatchLink();
+            return;
+        }
+
+        const requestSeq = ++batchLookupRequestSeq;
+        const select = document.getElementById('batchSelect');
+        const status = document.getElementById('batchStatus');
+
+        selectedBatchId = '';
+        currentOperation = '';
+
+        select.disabled = true;
+        select.innerHTML = '<option value="">查詢中...</option>';
+        status.className = 'batch-status';
+        status.textContent = '⏳ 正在查詢可關聯的生產批次...';
+
+        const url =
+            `${GAS_WEB_APP_URL}?action=getOpenBatchesByPart` +
+            `&part=${encodeURIComponent(partValue)}` +
+            `&_=${Date.now()}`;
+
+        fetchGasJsonWithRetry(url, 'getOpenBatchesByPart')
+        .then(data => {
+            if (requestSeq !== batchLookupRequestSeq) return;
+
+            currentOperation = String((data && data.operation) || '').trim();
+            document.getElementById('operation').value = currentOperation;
+
+            const batches = (data && data.success && Array.isArray(data.batches))
+                ? data.batches : [];
+
+            select.innerHTML = '';
+
+            if (batches.length === 0) {
+                select.innerHTML = '<option value="">尚未建立／無可用批次（可直接回報）</option>';
+                select.disabled = true;
+                selectedBatchId = '';
+                status.className = 'batch-status warn';
+                status.textContent = '⚠️ 此件號目前沒有尚未完成的生產批次；導入期間可直接送出，本筆 Batch ID 會留空。';
+                return;
+            }
+
+            if (batches.length === 1) {
+                const b = batches[0];
+                const opt = document.createElement('option');
+                opt.value = b.batchId;
+                opt.textContent = batchOptionText(b);
+                select.appendChild(opt);
+                select.value = b.batchId;
+                select.disabled = true;
+                selectedBatchId = b.batchId;
+                status.className = 'batch-status ok';
+                status.textContent = `✅ 已自動關聯批次 ${b.batchId}` +
+                    (currentOperation ? `｜工序 ${currentOperation}` : '');
+                return;
+            }
+
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = `找到 ${batches.length} 個批次，請選擇`;
+            select.appendChild(placeholder);
+
+            batches.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b.batchId;
+                opt.textContent = batchOptionText(b);
+                select.appendChild(opt);
+            });
+
+            select.disabled = false;
+            selectedBatchId = '';
+            status.className = 'batch-status warn';
+            status.textContent = `⚠️ 找到 ${batches.length} 個尚未完成批次，請確認本次加工屬於哪一批。` +
+                (currentOperation ? `｜工序 ${currentOperation}` : '');
+        })
+        .catch(err => {
+            if (requestSeq !== batchLookupRequestSeq) return;
+            console.warn('查詢生產批次失敗', err);
+            select.innerHTML = '<option value="">批次查詢失敗（仍可回報）</option>';
+            select.disabled = true;
+            selectedBatchId = '';
+            status.className = 'batch-status warn';
+            status.textContent = '⚠️ 暫時無法取得批次資料；本筆仍可送出，Batch ID 會留空。';
+        });
+    }
+
+    document.getElementById('batchSelect').addEventListener('change', function () {
+        selectedBatchId = String(this.value || '').trim();
+        const status = document.getElementById('batchStatus');
+        if (selectedBatchId) {
+            status.className = 'batch-status ok';
+            status.textContent = `✅ 已選擇批次 ${selectedBatchId}` +
+                (currentOperation ? `｜工序 ${currentOperation}` : '');
+        } else {
+            status.className = 'batch-status warn';
+            status.textContent = '⚠️ 尚未選擇批次；導入期間仍可送出，但 Batch ID 將留空。';
+        }
+    });
 
 
     // =========================================================
@@ -1883,6 +2046,8 @@ function fetchLastRecord() {
         if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete') {
             isUserTypingPart = true;
             selectedPart = "";
+            batchLookupRequestSeq++;
+            resetBatchLink('💡 件號變更中，選定件號後會重新查詢生產批次。');
         }
 
         let items = partList.getElementsByClassName('dropdown-item');
@@ -2334,6 +2499,8 @@ function fetchLastRecord() {
             shift: shift,
             machine: machineInput.value,
             part: partInput.value,
+            batchId: selectedBatchId || "",
+            operation: currentOperation || "",
             startTime: startTime,
             endTime: endTime,
             workingHours: workingHours,
@@ -2358,6 +2525,8 @@ function fetchLastRecord() {
             <b>班別：</b>${data.shift}<br>
             <b>機台：</b>${data.machine}<br>
             <b>件號：</b>${data.part}<br>
+            <b>生產批次：</b>${data.batchId || '未關聯批次'}<br>
+            ${data.operation ? `<b>工序：</b>${data.operation}<br>` : ''}
             <b>開始時間：</b>${data.startTime}<br>
             <b>結束時間：</b>${data.endTime || '（未填）'}<br>
             <b>完成數量：</b>${data.qty} pcs<br>
@@ -2504,6 +2673,8 @@ function fetchLastRecord() {
         selectedMachine = '';
         selectedPart = '';
         isUserTypingPart = false;
+        batchLookupRequestSeq++;
+        resetBatchLink();
         lastRecordEndTime = null;
         currentRequestId = null;
 
