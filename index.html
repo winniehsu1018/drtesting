@@ -1155,25 +1155,34 @@ function checkUserPermission(userId, displayName) {
             select.innerHTML = '';
 
             if (batches.length === 0) {
-                select.innerHTML = '<option value="">尚未建立／無可用批次（可直接回報）</option>';
+                select.innerHTML = '<option value="">無批次ID（導入前舊批次）</option>';
                 select.disabled = true;
                 selectedBatchId = '';
                 status.className = 'batch-status warn';
-                status.textContent = '⚠️ 此件號目前沒有尚未完成的生產批次；導入期間可直接送出，本筆 Batch ID 會留空。';
+                status.textContent = '⚠️ 此件號目前沒有尚未完成的生產批次；本筆將以「無批次ID」回報。';
                 return;
             }
 
             if (batches.length === 1) {
                 const b = batches[0];
+
                 const opt = document.createElement('option');
                 opt.value = b.batchId;
                 opt.textContent = batchOptionText(b);
                 select.appendChild(opt);
+
+                const noBatchOpt = document.createElement('option');
+                noBatchOpt.value = '';
+                noBatchOpt.textContent = '無批次ID（導入前舊批次）';
+                select.appendChild(noBatchOpt);
+
+                // 只有一個正式批次時仍預設自動帶入，但允許員工改選舊批次。
                 select.value = b.batchId;
-                select.disabled = true;
+                select.disabled = false;
                 selectedBatchId = b.batchId;
+
                 status.className = 'batch-status ok';
-                status.textContent = `✅ 已自動關聯批次 ${b.batchId}` +
+                status.textContent = `✅ 已自動關聯批次 ${b.batchId}；若本次加工屬於導入前舊料，可改選「無批次ID」。` +
                     (currentOperation ? `｜工序 ${currentOperation}` : '');
                 return;
             }
@@ -1189,6 +1198,11 @@ function checkUserPermission(userId, displayName) {
                 opt.textContent = batchOptionText(b);
                 select.appendChild(opt);
             });
+
+            const noBatchOpt = document.createElement('option');
+            noBatchOpt.value = '';
+            noBatchOpt.textContent = '無批次ID（導入前舊批次）';
+            select.appendChild(noBatchOpt);
 
             select.disabled = false;
             selectedBatchId = '';
@@ -1216,7 +1230,7 @@ function checkUserPermission(userId, displayName) {
                 (currentOperation ? `｜工序 ${currentOperation}` : '');
         } else {
             status.className = 'batch-status warn';
-            status.textContent = '⚠️ 尚未選擇批次；導入期間仍可送出，但 Batch ID 將留空。';
+            status.textContent = '⚠️ 已選擇「無批次ID（導入前舊批次）」；本筆 Z 欄將留空。';
         }
     });
 
