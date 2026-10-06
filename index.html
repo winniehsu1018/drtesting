@@ -401,21 +401,31 @@
 
 <div class="container">
 
-    <!-- 身分驗證等待 / 錯誤畫面 -->
+    <!-- 輕量登入 -->
     <div id="loginView">
         <h2>CNC 生產日報回報系統</h2>
-        <div class="spinner" id="loginSpinner"></div>
-        <p id="loginMsg">正在載入日報系統，請稍候...</p>
+        <p id="loginMsg" style="text-align:center;color:#666;">請輸入員工代碼與 PIN</p>
+        <div class="form-group">
+            <label for="employeeCode">員工代碼：</label>
+            <input type="text" id="employeeCode" autocomplete="username" inputmode="numeric" placeholder="例如：001">
+        </div>
+        <div class="form-group">
+            <label for="employeePin">PIN：</label>
+            <input type="password" id="employeePin" autocomplete="current-password" inputmode="numeric" placeholder="請輸入 PIN">
+        </div>
+        <button type="button" id="lightLoginBtn" onclick="submitLightLogin()">登入</button>
+        <div id="loginSpinner" class="spinner" style="display:none;margin:15px auto 0;"></div>
+        <div class="time-hint" style="margin-top:12px;text-align:center;">💡 第一次登入後，此裝置會記住登入狀態 30 天</div>
     </div>
 
     <!-- 原始表單畫面 (預設隱藏，通過驗證後顯示) -->
     <div id="mainFormView" style="display: none;">
         <h2>CNC 生產日報回報</h2>
-        <div style="text-align:center;color:#b26a00;font-size:13px;margin:-10px 0 15px;">🧪 無 LINE 驗證測速版</div>
+        <div style="text-align:center;color:#b26a00;font-size:13px;margin:-10px 0 15px;">⚡ 輕量登入測試版</div>
 
         <div id="successBanner" role="status" aria-live="polite"></div>
 
-        <div id="userInfo">測試模式：不使用 LINE 驗證</div>
+        <div id="userInfo">尚未登入</div>
 
         <form
             id="reportForm"
@@ -813,40 +823,135 @@ function getProductionDateMMDD() {
     let pendingFormData = null;
     let successBannerTimer = null;
     // =========================================================
-    // 頁面初始化（無 LINE 驗證測速版）
+    // 頁面初始化（輕量登入版）
     // =========================================================
+    const LIGHT_LOGIN_STORAGE_KEY = 'cncLightLoginToken';
+    let lightLoginToken = '';
+
     window.onload = function () {
-        initializeNoLineMode();
+        initializeLightLogin();
     };
 
-    function initializeNoLineMode() {
-        // 直接顯示表單，不等待 LIFF / LINE Profile / checkAuth
+    async function initializeLightLogin() {
+        document.getElementById('date').value = getProductionDateMMDD();
+        const savedToken = localStorage.getItem(LIGHT_LOGIN_STORAGE_KEY) || '';
+
+        if (!savedToken) {
+            showLightLogin();
+            return;
+        }
+
+        document.getElementById('loginMsg').textContent = '正在快速登入...';
+        document.getElementById('loginSpinner').style.display = 'block';
+
+        try {
+            const url = `${GAS_WEB_APP_URL}?action=checkLightLogin` +
+                        `&loginToken=${encodeURIComponent(savedToken)}` +
+                        `&_=${Date.now()}`;
+            const data = await fetchGasJsonWithRetry(url, '快速登入');
+
+            if (data && data.success && data.authorized) {
+                enterReportAfterLightLogin(savedToken, data);
+                return;
+            }
+        } catch (err) {
+            console.warn('快速登入失敗：', err);
+        }
+
+        localStorage.removeItem(LIGHT_LOGIN_STORAGE_KEY);
+        showLightLogin('登入已失效，請重新登入。');
+    }
+
+    function showLightLogin(message) {
+        document.getElementById('mainFormView').style.display = 'none';
+        document.getElementById('loginView').style.display = 'block';
+        document.getElementById('loginSpinner').style.display = 'none';
+        document.getElementById('loginMsg').textContent = message || '請輸入員工代碼與 PIN';
+        setTimeout(() => document.getElementById('employeeCode').focus(), 50);
+    }
+
+    async function submitLightLogin() {
+        const code = document.getElementById('employeeCode').value.trim();
+        const pin = document.getElementById('employeePin').value.trim();
+        const btn = document.getElementById('lightLoginBtn');
+
+        if (!code || !pin) {
+            document.getElementById('loginMsg').textContent = '請輸入員工代碼與 PIN。';
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = '登入中...';
+        document.getElementById('loginSpinner').style.display = 'block';
+        document.getElementById('loginMsg').textContent = '正在驗證...';
+
+        try {
+            const res = await fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: {'Content-Type': 'text/plain;charset=utf-8'},
+                body: JSON.stringify({
+                    action: 'lightLogin',
+                    employeeCode: code,
+                    pin: pin
+                })
+            });
+            const data = await res.json();
+
+            if (!data || data.success !== true || !data.loginToken) {
+                throw new Error((data && data.message) || '登入失敗');
+            }
+
+            localStorage.setItem(LIGHT_LOGIN_STORAGE_KEY, data.loginToken);
+            document.getElementById('employeePin').value = '';
+            enterReportAfterLightLogin(data.loginToken, data);
+
+        } catch (err) {
+            document.getElementById('loginMsg').textContent =
+                '❌ ' + (err.message || '登入失敗，請稍後再試。');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '登入';
+            document.getElementById('loginSpinner').style.display = 'none';
+        }
+    }
+
+    function enterReportAfterLightLogin(token, data) {
+        lightLoginToken = token;
+        userProfile = {userId: data.employeeCode || ''};
+        realEmployeeName = data.employeeName || data.employeeCode || '';
+        isCurrentUserAdmin = data.isAdmin === true;
+
         document.getElementById('loginView').style.display = 'none';
         document.getElementById('mainFormView').style.display = 'block';
-
-        // 測試版固定回報人名稱，方便辨識資料來源
-        userProfile = { userId: 'NO_LINE_TEST' };
-        realEmployeeName = '網頁測試';
-        isCurrentUserAdmin = false;
 
         const adminPanel = document.getElementById('adminPanel');
         if (adminPanel) adminPanel.style.display = 'none';
 
-        document.getElementById('userInfo').textContent =
-            '🧪 測試模式：已停用 LINE 驗證';
-
-        document.getElementById('date').value = getProductionDateMMDD();
+        document.getElementById('userInfo').innerHTML =
+            `👤 登入身分：${escapeHtml(realEmployeeName)} ` +
+            `<button type="button" onclick="logoutLightLogin()" ` +
+            `style="width:auto;padding:5px 10px;margin-left:8px;font-size:12px;background:#777;">更換使用者</button>`;
 
         setDefaultInvalidItems();
         fetchOptions();
         checkAddButtonState();
-
-        // 先選班別前仍維持原本欄位鎖定邏輯
         machineInput.focus();
     }
 
+    function logoutLightLogin() {
+        localStorage.removeItem(LIGHT_LOGIN_STORAGE_KEY);
+        lightLoginToken = '';
+        location.reload();
+    }
 
-
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter' &&
+            document.getElementById('loginView').style.display !== 'none' &&
+            document.activeElement && document.activeElement.id === 'employeePin') {
+            event.preventDefault();
+            submitLightLogin();
+        }
+    });
 
     // =========================================================
     // GAS GET 共用背景重試
@@ -2613,6 +2718,7 @@ const machine = machineInput.value.trim();
         // 封裝表單資料準備送出
         pendingFormData = {
             requestId: currentRequestId,
+            loginToken: lightLoginToken,
             userId: userProfile.userId,
             userName: realEmployeeName,
             date: document.getElementById('date').value,
@@ -2717,6 +2823,12 @@ const machine = machineInput.value.trim();
             submitBtn.textContent = "確認送出";
 
             if (data && data.success === false) {
+                if (data.needLogin === true) {
+                    localStorage.removeItem(LIGHT_LOGIN_STORAGE_KEY);
+                    alert(data.message || "登入已失效，請重新登入。");
+                    location.reload();
+                    return;
+                }
                 alert(data.message || "❌ 回報失敗，資料未寫入。");
                 return;
             }
