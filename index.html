@@ -1160,6 +1160,7 @@ function checkUserPermission(userId, displayName) {
         selectedBatchId = "";
         batchSelectionMade = false;
         currentOperation = "";
+        lastBatchLookupPart = "";
 
         const list = document.getElementById('batchChoiceList');
         const status = document.getElementById('batchStatus');
@@ -1221,13 +1222,29 @@ function checkUserPermission(userId, displayName) {
         return btn;
     }
 
-    function fetchOpenBatchesForPart(part) {
+    let lastBatchLookupPart = '';
+
+    function fetchOpenBatchesForPart(part, forceRefresh = false) {
         const partValue = String(part || '').trim();
         if (!partValue) {
+            lastBatchLookupPart = '';
             resetBatchLink();
             return;
         }
 
+        // 同一件號的批次清單已經載入時，不要因為後續 input/change/focus
+        // 事件再次查詢，否則員工剛選好的批次會被「查詢中...」重新覆蓋。
+        const existingBatchList = document.getElementById('batchChoiceList');
+        const hasLoadedChoices =
+            existingBatchList && existingBatchList.querySelector('.batch-choice-btn:not(:disabled)');
+
+        if (!forceRefresh &&
+            lastBatchLookupPart === partValue &&
+            hasLoadedChoices) {
+            return;
+        }
+
+        lastBatchLookupPart = partValue;
         const requestSeq = ++batchLookupRequestSeq;
         const list = document.getElementById('batchChoiceList');
         const status = document.getElementById('batchStatus');
