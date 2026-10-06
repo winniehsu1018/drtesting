@@ -1096,18 +1096,25 @@ function checkUserPermission(userId, displayName) {
         document.getElementById('startTime').value = '';
         document.getElementById('endTime').value = '';
 
+        // 直接從目前班別欄位讀值。
+        // 注意：這裡不能使用未宣告的 currentShift，否則第二筆之後選機台時
+        // 會在清空時間後拋出 ReferenceError，導致 08:00/17:00 與上一筆查詢都不再執行。
+        const selectedShift = document.getElementById('shift').value;
+
         // 白班預設時間：每次選機台都先恢復 08:00～17:00。
-        // 若此機台當天已有上一筆紀錄，後續 getLastRecord 仍會以
-        // 「上一筆結束時間」覆蓋開始時間，因此原本的接續回報邏輯不變。
-        if (currentShift === '白班') {
+        // 若此機台當天已有上一筆紀錄，fetchLastRecord() 再以
+        // 「上一筆結算時間」覆蓋本次開始時間。
+        if (selectedShift === '白班') {
             document.getElementById('startTime').value = '08:00';
             document.getElementById('endTime').value = '17:00';
+            setWorkingHours('540');
         }
+
         document.getElementById('unitSeconds').value = '';
         lastRecordEndTime = null;
 
-        // 如果班別也已經選了，立刻撈取上一筆資料
-        if (document.getElementById('shift').value) {
+        // 班別已選好才查上一筆
+        if (selectedShift) {
             fetchLastRecord();
         }
     }
