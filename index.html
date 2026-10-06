@@ -1646,6 +1646,15 @@ function fetchLastRecord() {
         const startTimeEl =
             document.getElementById('startTime');
 
+        // 白班每次「上一筆查詢」完成後，都先確保標準時間存在。
+        // 後面若真的有上一筆 endTime，只覆蓋開始時間。
+        // 這可避免後端 success=true 但沒有 endTime 時，把第 5 筆之後留成空白。
+        if (shift === '白班') {
+            startTimeEl.value = '08:00';
+            document.getElementById('endTime').value = '17:00';
+            setWorkingHours('540');
+        }
+
 
         // =====================================================
         // 找到上一筆資料
@@ -2750,6 +2759,7 @@ function fetchLastRecord() {
         selectedPart = '';
         isUserTypingPart = false;
         batchLookupRequestSeq++;
+        lastRecordRequestSeq++; // 使上一筆機台尚未完成的查詢立即失效，避免舊回應覆蓋下一筆
         resetBatchLink();
         lastRecordEndTime = null;
         currentRequestId = null;
