@@ -5,11 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CNC 生產日報回報系統</title>
-
-    <!-- 引入 LINE LIFF SDK -->
-    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-
-    <style>
+    <!-- 測速版：已移除 LINE LIFF SDK -->
+<style>
         body {
             font-family: Arial, sans-serif;
             background-color: #f4f7f6;
@@ -408,16 +405,17 @@
     <div id="loginView">
         <h2>CNC 生產日報回報系統</h2>
         <div class="spinner" id="loginSpinner"></div>
-        <p id="loginMsg">正在驗證您的 LINE 身分權限，請稍候...</p>
+        <p id="loginMsg">正在載入日報系統，請稍候...</p>
     </div>
 
     <!-- 原始表單畫面 (預設隱藏，通過驗證後顯示) -->
     <div id="mainFormView" style="display: none;">
         <h2>CNC 生產日報回報</h2>
+        <div style="text-align:center;color:#b26a00;font-size:13px;margin:-10px 0 15px;">🧪 無 LINE 驗證測速版</div>
 
         <div id="successBanner" role="status" aria-live="polite"></div>
 
-        <div id="userInfo">正在取得 LINE 身分中...</div>
+        <div id="userInfo">測試模式：不使用 LINE 驗證</div>
 
         <form
             id="reportForm"
@@ -727,7 +725,7 @@
 
         </form>
 
-        <!-- 僅管理員可見 -->
+        <!-- 測速版停用管理員功能（無 LINE 身分可驗證） -->
         <div id="adminPanel">
             <h3>⚙️ 系統管理</h3>
             <div class="time-hint">僅限管理員操作</div>
@@ -760,10 +758,6 @@
 
    const GAS_WEB_APP_URL =
         "https://script.google.com/macros/s/AKfycbyFe5bvS0PXwFUzI5Uoevfd5yihoDV0-8DnGx4NB0ICWP3Vz7zA77NnZwjC0_Ac0szj/exec";
-
-    const LIFF_ID =
-        "2011565361-yGUaRYVQ";
-    
 // =========================================================
 // 取得目前「生產日期」
 // 每天凌晨 04:30 前仍歸屬前一天
@@ -818,48 +812,40 @@ function getProductionDateMMDD() {
     let currentRequestId = null;
     let pendingFormData = null;
     let successBannerTimer = null;
-
-
     // =========================================================
-    // 頁面初始化
+    // 頁面初始化（無 LINE 驗證測速版）
     // =========================================================
-
     window.onload = function () {
-        initializeLiff();
+        initializeNoLineMode();
     };
 
+    function initializeNoLineMode() {
+        // 直接顯示表單，不等待 LIFF / LINE Profile / checkAuth
+        document.getElementById('loginView').style.display = 'none';
+        document.getElementById('mainFormView').style.display = 'block';
 
-    // =========================================================
-    // LIFF 初始化與身分驗證
-    // =========================================================
+        // 測試版固定回報人名稱，方便辨識資料來源
+        userProfile = { userId: 'NO_LINE_TEST' };
+        realEmployeeName = '網頁測試';
+        isCurrentUserAdmin = false;
 
-    function initializeLiff() {
-        liff.init({ liffId: LIFF_ID })
-        .then(() => {
-            if (!liff.isInClient() && !liff.isLoggedIn()) {
-                liff.login();
-                return;
-            }
-            if (!liff.isLoggedIn()) {
-                document.getElementById('loginMsg').textContent = '⚠️ LINE 尚未登入';
-                document.getElementById('loginSpinner').style.display = 'none';
-                return;
-            }
-            return liff.getProfile();
-        })
-        .then(profile => {
-            if (!profile) return;
-            userProfile = profile;
-            
-            // 向 GAS 驗證該 userId 是否在授權白名單內
-            checkUserPermission(profile.userId, profile.displayName);
-        })
-        .catch(err => {
-            console.error('LIFF Initialization failed', err);
-            document.getElementById('loginMsg').textContent = '⚠️ LINE 登入初始化失敗';
-            document.getElementById('loginSpinner').style.display = 'none';
-        });
+        const adminPanel = document.getElementById('adminPanel');
+        if (adminPanel) adminPanel.style.display = 'none';
+
+        document.getElementById('userInfo').textContent =
+            '🧪 測試模式：已停用 LINE 驗證';
+
+        document.getElementById('date').value = getProductionDateMMDD();
+
+        setDefaultInvalidItems();
+        fetchOptions();
+        checkAddButtonState();
+
+        // 先選班別前仍維持原本欄位鎖定邏輯
+        machineInput.focus();
     }
+
+
 
 
     // =========================================================
@@ -2431,13 +2417,7 @@ function fetchLastRecord() {
 
     document.getElementById('reportForm').addEventListener('submit', function (e) {
         e.preventDefault();
-
-        if (!userProfile.userId) {
-            alert("⚠️ 尚未取得 LINE 身分識別，請重新整理頁面！");
-            return;
-        }
-
-        const machine = machineInput.value.trim();
+const machine = machineInput.value.trim();
         if (!machine || !selectedMachine || machine !== selectedMachine) {
             document.getElementById('machineError').style.display = 'block';
             alert("❌ 請從機台清單中選擇有效的機台！");
