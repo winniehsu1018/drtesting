@@ -1211,8 +1211,12 @@ function checkUserPermission(userId, displayName) {
         btn.type = 'button';
         btn.className = 'batch-choice-btn' + (options.legacy ? ' legacy' : '');
         btn.textContent = text;
-        btn.addEventListener('click', function () {
+        btn.addEventListener('click', function (event) {
+            // 批次卡只負責選取，不允許觸發表單 submit / 重新整理 / 其他 click handler
+            event.preventDefault();
+            event.stopPropagation();
             setBatchChoice(batchId, btn);
+            return false;
         });
         return btn;
     }
