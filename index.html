@@ -455,13 +455,13 @@
         </div>
         <button type="button" id="lightLoginBtn" class="light-login-btn" onclick="submitLightLogin()">登入</button>
         <div id="loginSpinner" class="spinner" style="display:none;margin:15px auto 0;"></div>
-        <div class="time-hint" style="margin-top:12px;text-align:center;">💡 關閉或重新整理網頁後，需重新登入</div>
+        <div class="time-hint" style="margin-top:12px;text-align:center;">💡 每次開啟或重新整理網頁後，需重新登入</div>
     </div>
 
     <!-- 原始表單畫面 (預設隱藏，通過驗證後顯示) -->
     <div id="mainFormView" style="display: none;">
         <h2>CNC 生產日報回報</h2>
-        <div style="text-align:center;color:#b26a00;font-size:13px;margin:-10px 0 15px;">⚡ 每次開啟登入版 v9</div>
+        <div style="text-align:center;color:#b26a00;font-size:13px;margin:-10px 0 15px;">⚡ 每次開啟登入版 FINAL</div>
 
         <div id="successBanner" role="status" aria-live="polite"></div>
 
@@ -873,14 +873,16 @@ function getProductionDateMMDD() {
     };
 
     async function initializeLightLogin() {
-        document.getElementById('date').value = getProductionDateMMDD();
-
-        // 每次開啟 / 重新整理網頁都重新登入。
-        // 登入後的 token 只保留在目前這個頁面，不寫入 localStorage。
+        // 每次開啟 / 重新整理都重新登入。
+        // 登入成功前，絕不顯示日報主畫面，也不載入機台 / 件號。
         lightLoginToken = '';
         userProfile = {};
         realEmployeeName = '';
         isCurrentUserAdmin = false;
+
+        document.getElementById('mainFormView').style.display = 'none';
+        document.getElementById('loginView').style.display = 'block';
+        document.getElementById('date').value = getProductionDateMMDD();
 
         showLightLogin();
     }
@@ -945,24 +947,21 @@ function getProductionDateMMDD() {
 
     function enterReportAfterLightLogin(token, data) {
         lightLoginToken = token;
-        userProfile = {userId: data.employeeCode || ''};
+        userProfile = { userId: data.employeeCode || '' };
         realEmployeeName = data.employeeName || data.employeeCode || '';
         isCurrentUserAdmin = data.isAdmin === true;
 
         document.getElementById('loginView').style.display = 'none';
         document.getElementById('mainFormView').style.display = 'block';
 
+        // 輕量登入版先維持原本管理工具隱藏，不改其他管理功能。
         const adminPanel = document.getElementById('adminPanel');
         if (adminPanel) adminPanel.style.display = 'none';
 
-        document.getElementById('userInfo').innerHTML =
-            `👤 登入身分：${escapeHtml(realEmployeeName)} ` +
-            `<button type="button" onclick="logoutLightLogin()" ` +
-            `style="width:auto;padding:5px 10px;margin-left:8px;font-size:12px;background:#777;">更換使用者</button>`;
+        document.getElementById('userInfo').textContent =
+            '👤 登入身分：' + realEmployeeName;
 
-        const machineError = document.getElementById('machineError');
-        if (machineError) machineError.style.display = 'none';
-
+        // 以下沿用原日報初始化順序，不改機台 / 件號 / 批次 / 無效工時邏輯。
         setDefaultInvalidItems();
         fetchOptions();
         checkAddButtonState();
