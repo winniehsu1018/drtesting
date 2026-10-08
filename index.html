@@ -414,10 +414,10 @@
     <!-- 每次開啟皆需登入：個人 PIN -->
     <div id="loginView">
         <h2>CNC 生產日報回報系統</h2>
-        <p id="loginMsg" style="text-align:center;color:#666;">請輸入個人 PIN（員工 4 位／管理員 6 位）</p>
+        <p id="loginMsg" style="text-align:center;color:#666;">請輸入個人 PIN</p>
         <div class="form-group">
             <label for="employeePin">PIN：</label>
-            <input type="password" id="employeePin" autocomplete="current-password" inputmode="numeric" placeholder="請輸入 4 或 6 位數 PIN" maxlength="6" pattern="[0-9]{4}|[0-9]{6}">
+            <input type="password" id="employeePin" autocomplete="current-password" inputmode="numeric" placeholder="請輸入個人 PIN" maxlength="6" pattern="[0-9]{4}|[0-9]{6}">
         </div>
         <button type="button" id="lightLoginBtn" class="light-login-btn" onclick="submitLightLogin()">登入</button>
         <div id="loginSpinner" class="spinner" style="display:none;margin:15px auto 0;"></div>
@@ -849,7 +849,7 @@ function getProductionDateMMDD() {
         document.getElementById('loginView').style.display = 'block';
         document.getElementById('date').value = getProductionDateMMDD();
         document.getElementById('loginSpinner').style.display = 'none';
-        document.getElementById('loginMsg').textContent = '請輸入個人 PIN（員工 4 位／管理員 6 位）';
+        document.getElementById('loginMsg').textContent = '請輸入個人 PIN';
         setTimeout(() => document.getElementById('employeePin').focus(), 50);
     }
 
@@ -857,8 +857,8 @@ function getProductionDateMMDD() {
         const pin = document.getElementById('employeePin').value.trim();
         const btn = document.getElementById('lightLoginBtn');
 
-        if (!code || !pin) {
-            document.getElementById('loginMsg').textContent = '請輸入個人 PIN（員工 4 位／管理員 6 位）。';
+        if (!/^(?:[0-9]{4}|[0-9]{6})$/.test(pin)) {
+            document.getElementById('loginMsg').textContent = '請輸入有效的個人 PIN。';
             return;
         }
 
