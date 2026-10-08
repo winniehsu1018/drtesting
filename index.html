@@ -411,17 +411,13 @@
 
 <div class="container">
 
-    <!-- 每次開啟皆需登入：員工代碼 + PIN -->
+    <!-- 每次開啟皆需登入：個人 PIN -->
     <div id="loginView">
         <h2>CNC 生產日報回報系統</h2>
-        <p id="loginMsg" style="text-align:center;color:#666;">請輸入員工代碼與 PIN</p>
-        <div class="form-group">
-            <label for="employeeCode">員工代碼：</label>
-            <input type="text" id="employeeCode" autocomplete="username" inputmode="numeric" placeholder="例如：001">
-        </div>
+        <p id="loginMsg" style="text-align:center;color:#666;">請輸入個人 PIN（員工 4 位／管理員 6 位）</p>
         <div class="form-group">
             <label for="employeePin">PIN：</label>
-            <input type="password" id="employeePin" autocomplete="current-password" inputmode="numeric" placeholder="請輸入 PIN">
+            <input type="password" id="employeePin" autocomplete="current-password" inputmode="numeric" placeholder="請輸入 4 或 6 位數 PIN" maxlength="6" pattern="[0-9]{4}|[0-9]{6}">
         </div>
         <button type="button" id="lightLoginBtn" class="light-login-btn" onclick="submitLightLogin()">登入</button>
         <div id="loginSpinner" class="spinner" style="display:none;margin:15px auto 0;"></div>
@@ -853,17 +849,16 @@ function getProductionDateMMDD() {
         document.getElementById('loginView').style.display = 'block';
         document.getElementById('date').value = getProductionDateMMDD();
         document.getElementById('loginSpinner').style.display = 'none';
-        document.getElementById('loginMsg').textContent = '請輸入員工代碼與 PIN';
-        setTimeout(() => document.getElementById('employeeCode').focus(), 50);
+        document.getElementById('loginMsg').textContent = '請輸入個人 PIN（員工 4 位／管理員 6 位）';
+        setTimeout(() => document.getElementById('employeePin').focus(), 50);
     }
 
     async function submitLightLogin() {
-        const code = document.getElementById('employeeCode').value.trim();
         const pin = document.getElementById('employeePin').value.trim();
         const btn = document.getElementById('lightLoginBtn');
 
         if (!code || !pin) {
-            document.getElementById('loginMsg').textContent = '請輸入員工代碼與 PIN。';
+            document.getElementById('loginMsg').textContent = '請輸入個人 PIN（員工 4 位／管理員 6 位）。';
             return;
         }
 
@@ -873,18 +868,21 @@ function getProductionDateMMDD() {
         document.getElementById('loginMsg').textContent = '正在驗證...';
 
         try {
-            const url = `${GAS_WEB_APP_URL}?action=lightLogin` +
-                `&employeeCode=${encodeURIComponent(code)}` +
-                `&pin=${encodeURIComponent(pin)}` +
-                `&_=${Date.now()}`;
-            const data = await fetchGasJsonWithRetry(url, '員工登入');
+            // PIN 不放在網址，改用 POST 傳送至 GAS
+            const response = await fetch(GAS_WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'lightLogin', pin: pin })
+            });
+            if (!response.ok) throw new Error('登入連線失敗 HTTP ' + response.status);
+            const data = await response.json();
             if (!data || data.success !== true || !data.loginToken) {
                 throw new Error((data && data.message) || '登入失敗');
             }
 
             lightLoginToken = data.loginToken;
-            userProfile = { userId: data.employeeCode || code };
-            realEmployeeName = data.employeeName || data.employeeCode || code;
+            userProfile = { userId: data.employeeCode || '' };
+            realEmployeeName = data.employeeName || data.employeeCode || '';
             isCurrentUserAdmin = data.isAdmin === true;
 
             document.getElementById('employeePin').value = '';
@@ -893,7 +891,7 @@ function getProductionDateMMDD() {
             document.getElementById('userInfo').textContent = '👤 登入身分：' + realEmployeeName;
 
             const adminPanel = document.getElementById('adminPanel');
-            if (adminPanel) adminPanel.style.display = 'none';
+            if (adminPanel) adminPanel.style.display = isCurrentUserAdmin ? 'block' : 'none';
 
             setDefaultInvalidItems();
             fetchOptions();
@@ -1092,7 +1090,7 @@ function checkUserPermission(userId, displayName) {
         status.textContent = `⏳ 正在${label}...`;
 
         const url = `${GAS_WEB_APP_URL}?action=${encodeURIComponent(action)}` +
-                    `&userId=${encodeURIComponent(userProfile.userId)}` +
+                    `&loginToken=${encodeURIComponent(lightLoginToken)}` +
                     `&_=${Date.now()}`;
         try {
             const data = await fetchGasJsonWithRetry(url, label);
