@@ -446,7 +446,7 @@
                     inputmode="numeric"
                     required
                     placeholder="例如: 0824"
-                    onchange="fetchLastRecord()"
+                    onchange="midBatchCandidate=null; midBatchCandidateKey=''; midBatchPartChanged=false; midBatchAutoApplied=false; ++midBatchLookupSeq; fetchLastRecord(); loadMidShiftBatchCandidate()"
                 >
             </div>
 
@@ -822,6 +822,11 @@ function getProductionDateMMDD() {
     let batchSelectionMade = false;
     let currentOperation = "";
     let batchLookupRequestSeq = 0;
+    let midBatchCandidate = null;
+    let midBatchCandidateKey = '';
+    let midBatchLookupSeq = 0;
+    let midBatchPartChanged = false;
+    let midBatchAutoApplied = false;
 
     let lastRecordRequestSeq = 0;
 
@@ -875,7 +880,13 @@ function getProductionDateMMDD() {
                 body: JSON.stringify({ action: 'lightLogin', pin: pin })
             });
             if (!response.ok) throw new Error('登入連線失敗 HTTP ' + response.status);
-            const data = await response.json();
+            const rawText = await response.text();
+            let data;
+            try {
+                data = JSON.parse(rawText);
+            } catch (parseError) {
+                throw new Error('GAS 未回傳 PIN 登入資料，請確認 HTML 的 GAS 網址及 /exec 部署版本已更新。');
+            }
             if (!data || data.success !== true || !data.loginToken) {
                 throw new Error((data && data.message) || '登入失敗');
             }
@@ -1168,6 +1179,11 @@ function checkUserPermission(userId, displayName) {
         selectedPart = "";
         batchLookupRequestSeq++;
         resetBatchLink();
+        midBatchPartChanged = false;
+        midBatchAutoApplied = false;
+        midBatchCandidate = null;
+        midBatchCandidateKey = '';
+        ++midBatchLookupSeq;
         const selectedShift = document.getElementById('shift').value;
 
         // 中班仍由員工/上一筆資料決定時間；白班不再先清空再補值，
@@ -1184,6 +1200,7 @@ function checkUserPermission(userId, displayName) {
 
         if (selectedShift) {
             fetchLastRecord();
+            loadMidShiftBatchCandidate();
         }
     }
 
@@ -1193,6 +1210,9 @@ function checkUserPermission(userId, displayName) {
     // =========================================================
 
     function selectPart(item) {
+        // 中班第一次接班後，只要員工自行改選件號，便永久取消本次自動帶入。
+        if (document.getElementById('shift').value === '中班' &&
+            selectedPart && selectedPart !== item) midBatchPartChanged = true;
         partInput.value = item;
         selectedPart = item;
         partList.style.display = 'none';
@@ -1275,6 +1295,7 @@ function checkUserPermission(userId, displayName) {
         btn.type = 'button';
         btn.className = 'batch-choice-btn' + (options.legacy ? ' legacy' : '');
         btn.textContent = text;
+        btn.dataset.batchId = String(batchId || '').trim();
         btn.addEventListener('click', function (event) {
             // 批次卡只負責選取，不允許觸發表單 submit / 重新整理 / 其他 click handler
             event.preventDefault();
@@ -1283,6 +1304,40 @@ function checkUserPermission(userId, displayName) {
             return false;
         });
         return btn;
+    }
+
+    function loadMidShiftBatchCandidate() {
+        const shift = document.getElementById('shift').value;
+        const date = document.getElementById('date').value.trim();
+        const machine = (selectedMachine || machineInput.value).trim();
+        const seq = ++midBatchLookupSeq;
+        midBatchCandidate = null;
+        midBatchCandidateKey = '';
+        if (shift !== '中班' || !/^\d{4}$/.test(date) || !machine) return;
+        const key = [date,machine].join('|');
+        const url = `${GAS_WEB_APP_URL}?action=getMidShiftBatchCandidate` +
+            `&date=${encodeURIComponent(date)}&machine=${encodeURIComponent(machine)}&_=${Date.now()}`;
+        fetchGasJsonWithRetry(url, 'getMidShiftBatchCandidate').then(data => {
+            if (seq !== midBatchLookupSeq ||
+                document.getElementById('shift').value !== '中班' ||
+                [document.getElementById('date').value.trim(),
+                 (selectedMachine || machineInput.value).trim()].join('|') !== key) return;
+            midBatchCandidate = data && data.success ? data : null;
+            midBatchCandidateKey = key;
+            // 批次清單可能先載入；重新檢查候選，不重新清空員工選擇。
+            if (midBatchCandidate && midBatchCandidate.eligible &&
+                !midBatchPartChanged && !midBatchAutoApplied &&
+                selectedPart === midBatchCandidate.part && !batchSelectionMade) {
+                const button = Array.from(document.querySelectorAll('#batchChoiceList .batch-choice-btn'))
+                    .find(btn => btn.dataset.batchId === midBatchCandidate.batchId);
+                if (button) {
+                    setBatchChoice(midBatchCandidate.batchId, button);
+                    midBatchAutoApplied = true;
+                    document.getElementById('batchStatus').textContent =
+                        '✅ 已自動帶入白班批次 ' + midBatchCandidate.batchId + '（可手動更改）';
+                }
+            }
+        }).catch(err => console.warn('中班接班批次查詢失敗，改為手動選擇', err));
     }
 
     let lastBatchLookupPart = '';
@@ -1356,6 +1411,26 @@ function checkUserPermission(userId, displayName) {
                     makeBatchChoiceButton(batchOptionText(b), b.batchId)
                 );
             });
+            // 只允許中班第一次接續白班，且白班批次仍為未結案批次。
+            const candidate = midBatchCandidate;
+            const expectedKey = [document.getElementById('date').value.trim(),
+                (selectedMachine || machineInput.value).trim()].join('|');
+            if (document.getElementById('shift').value === '中班' &&
+                candidate && candidate.eligible && midBatchCandidateKey === expectedKey &&
+                !midBatchPartChanged && !midBatchAutoApplied &&
+                candidate.part === partValue &&
+                batches.some(b => String(b.batchId || '').trim() === candidate.batchId)) {
+                const button = Array.from(list.querySelectorAll('.batch-choice-btn'))
+                    .find(btn => btn.dataset.batchId === candidate.batchId);
+                // setBatchChoice 同時標記選取狀態，員工仍可自行更改。
+                if (button) {
+                    setBatchChoice(candidate.batchId, button);
+                    midBatchAutoApplied = true;
+                    status.textContent = '✅ 已自動帶入白班批次 ' + candidate.batchId + '（可手動更改）';
+                    return;
+                }
+            }
+
 
             const legacyBtn = makeBatchChoiceButton(
                 '無批次ID（導入前舊批次）', '', { legacy: true }
@@ -1410,6 +1485,11 @@ function checkUserPermission(userId, displayName) {
 
     function selectShift(shiftName) {
         document.getElementById('shift').value = shiftName;
+        midBatchCandidate = null;
+        midBatchCandidateKey = '';
+        midBatchPartChanged = false;
+        midBatchAutoApplied = false;
+        ++midBatchLookupSeq;
 
         const dayBtn = document.getElementById('dayShiftBtn');
         const nightBtn = document.getElementById('nightShiftBtn');
@@ -1444,6 +1524,7 @@ function checkUserPermission(userId, displayName) {
         // 如果機台已經有選好，立刻撈取上一筆資料
         if (selectedMachine) {
             fetchLastRecord();
+            loadMidShiftBatchCandidate();
         }
     }
 
@@ -2228,6 +2309,7 @@ function fetchLastRecord() {
     partInput.addEventListener('keydown', function (e) {
         if (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete') {
             isUserTypingPart = true;
+            if (document.getElementById('shift').value === '中班') midBatchPartChanged = true;
             selectedPart = "";
             batchLookupRequestSeq++;
             resetBatchLink('💡 件號變更中，選定件號後會重新查詢生產批次。');
