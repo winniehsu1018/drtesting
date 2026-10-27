@@ -718,6 +718,23 @@
                 >
             </div>
 
+        <!-- 班別工時確認：整合至日報填寫區，不影響原有回報 -->
+        <section id="settlementPanel" style="margin-top:24px;border-top:1px solid #ddd;padding-top:15px;">
+          <h3>班別工時確認</h3>
+          <div class="time-hint">選擇日期、機台及班別後自動顯示未交代時間；每段可新增多項原因及分鐘數。</div>
+          <button type="button" class="admin-btn" onclick="loadShiftSettlement()">重新整理班別工時</button>
+          <div id="settlementResult" role="status" aria-live="polite" style="margin-top:12px;font-size:14px;">請先選擇日期、機台及班別。</div>
+          <div id="settlementEditor" style="display:none;">
+            <div id="settlementSegments"></div>
+            <div id="settlementTotals" style="margin:10px 0;"></div>
+            <div id="settlementAdminReason" style="display:none;margin:10px 0;">
+              <label>管理員修正原因（必填）</label><input id="settlementReason" type="text" placeholder="說明修正原因">
+            </div>
+            <button type="button" class="admin-btn" id="settlementSaveBtn" onclick="confirmShiftSettlement()">確認並鎖定班別工時</button>
+          </div>
+        </section>
+
+
             <!-- 送出 -->
             <button
                 type="submit"
@@ -739,22 +756,6 @@
             </div>
 
         </form>
-
-        <!-- 班別工時確認：獨立畫面，不影響原本日報表單 -->
-        <section id="settlementPanel" style="margin-top:24px;border-top:1px solid #ddd;padding-top:15px;">
-          <h3>班別工時確認</h3>
-          <div class="time-hint">選擇日期、機台及班別後自動顯示未交代時間；每段可新增多項原因及分鐘數。</div>
-          <button type="button" class="admin-btn" onclick="loadShiftSettlement()">重新整理班別工時</button>
-          <div id="settlementResult" style="margin-top:12px;font-size:14px;"></div>
-          <div id="settlementEditor" style="display:none;">
-            <div id="settlementSegments"></div>
-            <div id="settlementTotals" style="margin:10px 0;"></div>
-            <div id="settlementAdminReason" style="display:none;margin:10px 0;">
-              <label>管理員修正原因（必填）</label><input id="settlementReason" type="text" placeholder="說明修正原因">
-            </div>
-            <button type="button" class="admin-btn" id="settlementSaveBtn" onclick="confirmShiftSettlement()">確認並鎖定班別工時</button>
-          </div>
-        </section>
 
         <!-- 僅管理員可見 -->
         <div id="adminPanel">
@@ -921,6 +922,7 @@ function getProductionDateMMDD() {
             if (adminPanel) adminPanel.style.display = isCurrentUserAdmin ? 'block' : 'none';
 
             setDefaultInvalidItems();
+            cncScheduleSettlementRefresh();
             fetchOptions();
             checkAddButtonState();
             setTimeout(() => machineInput.focus(), 50);
@@ -3090,7 +3092,7 @@ function cncCurrentContext(){
 function cncScheduleSettlementRefresh(){
   clearTimeout(cncSettlementTimer);
   const context=cncCurrentContext();
-  if(!context){cncSettlementSnapshot=null;cncSettlementText('settlementResult','請先選擇日期、機台及班別。');document.getElementById('settlementEditor').style.display='none';return;}
+  if(!context){++cncSettlementRequestSeq;cncSettlementSnapshot=null;cncSettlementText('settlementResult','請先選擇日期、機台及班別。');document.getElementById('settlementEditor').style.display='none';return;}
   cncSettlementTimer=setTimeout(()=>loadShiftSettlement(context),650);
 }
 async function loadShiftSettlement(context){
