@@ -530,7 +530,7 @@
             <!-- 開始時間 -->
             <div class="form-group">
                 <label for="startTime">
-                    開始時間 (若有上一筆將自動帶入結算時間)：
+                    實際生產開始時間 (若有上一筆將自動帶入結束時間)：
                 </label>
                 <input
                     type="text"
@@ -551,7 +551,7 @@
             <!-- 結算時間 -->
             <div class="form-group">
                 <label for="endTime">
-                    結算時間 (有填數量或無效工時則必填)：
+                    實際生產結束時間 (有填數量或無效工時則必填)：
                 </label>
                 <input
                     type="text"
@@ -638,8 +638,8 @@
                             <option value="">無</option>
                             <option value="架機">架機</option>
                             <option value="換刀">換刀</option>
-                            <option value="清潔">清潔</option>
-                            <option value="點檢">點檢</option>
+                            
+                            
                             <option value="待料">待料</option>
                             <option value="換批">換批</option>
                             <option value="其他">其他</option>
@@ -673,8 +673,8 @@
                             <option value="">無</option>
                             <option value="架機">架機</option>
                             <option value="換刀">換刀</option>
-                            <option value="清潔">清潔</option>
-                            <option value="點檢">點檢</option>
+                            
+                            
                             <option value="待料">待料</option>
                             <option value="換批">換批</option>
                             <option value="其他">其他</option>
@@ -739,6 +739,22 @@
             </div>
 
         </form>
+
+        <!-- 班別工時確認：獨立畫面，不影響原本日報表單 -->
+        <section id="settlementPanel" style="margin-top:24px;border-top:1px solid #ddd;padding-top:15px;">
+          <h3>班別工時確認</h3>
+          <div class="time-hint">依上方日期、機台及班別查詢；僅補充未回報生產時段的原因。</div>
+          <button type="button" class="admin-btn" onclick="loadShiftSettlement()">查詢未回報時段</button>
+          <div id="settlementResult" style="margin-top:12px;font-size:14px;"></div>
+          <div id="settlementEditor" style="display:none;">
+            <div id="settlementSegments"></div>
+            <div id="settlementTotals" style="margin:10px 0;"></div>
+            <div id="settlementAdminReason" style="display:none;margin:10px 0;">
+              <label>管理員修正原因（必填）</label><input id="settlementReason" type="text" placeholder="說明修正原因">
+            </div>
+            <button type="button" class="admin-btn" id="settlementSaveBtn" onclick="confirmShiftSettlement()">確認並鎖定班別工時</button>
+          </div>
+        </section>
 
         <!-- 僅管理員可見 -->
         <div id="adminPanel">
@@ -1128,16 +1144,16 @@ function checkUserPermission(userId, displayName) {
         if (boxes[0]) {
             const typeSelect1 = boxes[0].querySelector('.invalidType');
             const minInput1 = boxes[0].querySelector('.invalidMin');
-            if (typeSelect1) typeSelect1.value = '清潔';
-            if (minInput1) minInput1.value = '20';
+            if (typeSelect1) typeSelect1.value = ''; 
+            if (minInput1) minInput1.value = ''; 
         }
 
         // 項目 2 預設：點檢 3 分鐘
         if (boxes[1]) {
             const typeSelect2 = boxes[1].querySelector('.invalidType');
             const minInput2 = boxes[1].querySelector('.invalidMin');
-            if (typeSelect2) typeSelect2.value = '點檢';
-            if (minInput2) minInput2.value = '3';
+            if (typeSelect2) typeSelect2.value = ''; 
+            if (minInput2) minInput2.value = ''; 
         }
     }
 
@@ -2025,8 +2041,8 @@ function fetchLastRecord() {
                     <option value="">無</option>
                     <option value="架機">架機</option>
                     <option value="換刀">換刀</option>
-                    <option value="清潔">清潔</option>
-                    <option value="點檢">點檢</option>
+                    
+                    
                     <option value="待料">待料</option>
                     <option value="換批">換批</option>
                     <option value="其他">其他</option>
@@ -2985,8 +3001,8 @@ function fetchLastRecord() {
                         <option value="">無</option>
                         <option value="架機">架機</option>
                         <option value="換刀">換刀</option>
-                        <option value="清潔">清潔</option>
-                        <option value="點檢">點檢</option>
+                        
+                        
                         <option value="待料">待料</option>
                         <option value="換批">換批</option>
                         <option value="其他">其他</option>
@@ -3020,8 +3036,8 @@ function fetchLastRecord() {
                         <option value="">無</option>
                         <option value="架機">架機</option>
                         <option value="換刀">換刀</option>
-                        <option value="清潔">清潔</option>
-                        <option value="點檢">點檢</option>
+                        
+                        
                         <option value="待料">待料</option>
                         <option value="換批">換批</option>
                         <option value="其他">其他</option>
@@ -3057,6 +3073,60 @@ function fetchLastRecord() {
         });
     }
 
+
+// ===== 班別工時確認（獨立附加） =====
+let cncSettlementSnapshot = null;
+function cncSettlementText(id,text){document.getElementById(id).textContent=text;}
+async function loadShiftSettlement(){
+  const date=document.getElementById('date').value.trim();
+  const shift=document.getElementById('shift').value;
+  const machine=(selectedMachine||document.getElementById('machine').value).trim();
+  if(!/^\d{4}$/.test(date)||!shift||!machine){alert('請先選擇日期、機台、班別');return;}
+  cncSettlementText('settlementResult','查詢中...');
+  document.getElementById('settlementEditor').style.display='none';
+  const url=`${GAS_WEB_APP_URL}?action=getShiftSettlement&date=${encodeURIComponent(date)}&shift=${encodeURIComponent(shift)}&machine=${encodeURIComponent(machine)}&loginToken=${encodeURIComponent(lightLoginToken)}&_=${Date.now()}`;
+  try{
+    const data=await fetchGasJsonWithRetry(url,'班別工時確認');
+    if(!data.success)throw new Error(data.message);
+    cncSettlementSnapshot=data;
+    cncSettlementText('settlementResult',`應有 ${data.nominal} 分｜已回報時段 ${data.production} 分｜待說明 ${data.unreported} 分${data.locked?'｜已確認鎖定':''}`);
+    const area=document.getElementById('settlementSegments');area.innerHTML='';
+    data.gaps.forEach((g,i)=>{
+      const box=document.createElement('div');box.className='invalid-box';
+      const title=document.createElement('label');title.textContent=`未回報時段 ${i+1}：${g.start}～${g.end}（時鐘差 ${g.wallMinutes} 分）`;
+      const minutes=document.createElement('input');minutes.type='number';minutes.min='0';minutes.max=String(g.wallMinutes);minutes.step='1';minutes.className='settlement-min';minutes.value=String(g.minutes);
+      const select=document.createElement('select');select.className='settlement-type';
+      [['','請選擇原因'],['待料','待料'],['機台故障','機台故障'],['無排程','無排程'],['其他','其他']].forEach(([v,t])=>{const o=document.createElement('option');o.value=v;o.textContent=t;select.appendChild(o)});
+      const desc=document.createElement('input');desc.className='settlement-desc';desc.placeholder='其他原因說明';desc.style.display='none';
+      select.addEventListener('change',()=>desc.style.display=select.value==='其他'?'block':'none');
+      if(g.type){select.value=g.type;desc.value=g.description||'';desc.style.display=g.type==='其他'?'block':'none';}
+      box.append(title,minutes,select,desc);area.appendChild(box);
+      if(data.locked&&!isCurrentUserAdmin){minutes.disabled=true;select.disabled=true;desc.disabled=true;}
+    });
+    const hint=document.getElementById('settlementTotals');
+    hint.textContent=data.shift==='中班'?'中班的時鐘跨度與應有工時可能不同；請核對休息及非計工時，調整各空檔計入分鐘數，合計必須等於待說明分鐘數。':'各空檔的分鐘數合計必須等於待說明分鐘數。';
+    document.getElementById('settlementAdminReason').style.display=data.locked&&isCurrentUserAdmin?'block':'none';
+    const btn=document.getElementById('settlementSaveBtn');btn.style.display=data.locked&&!isCurrentUserAdmin?'none':'block';
+    btn.textContent=data.locked?'管理員修正並重新確認':'確認並鎖定班別工時';
+    document.getElementById('settlementEditor').style.display='block';
+  }catch(e){cncSettlementText('settlementResult','❌ '+e.message)}
+}
+async function confirmShiftSettlement(){
+  const s=cncSettlementSnapshot;if(!s)return;
+  const boxes=[...document.querySelectorAll('#settlementSegments .invalid-box')];
+  const gaps=boxes.map((box,i)=>({start:s.gaps[i].start,end:s.gaps[i].end,minutes:Number(box.querySelector('.settlement-min').value),type:box.querySelector('.settlement-type').value,description:box.querySelector('.settlement-desc').value.trim()}));
+  if(gaps.some(g=>!Number.isInteger(g.minutes)||g.minutes<0||(g.minutes>0&&!g.type)||(g.type==='其他'&&!g.description))){alert('請填寫每段空檔的分鐘數及原因；其他須填寫說明');return;}
+  if(gaps.reduce((n,g)=>n+g.minutes,0)!==s.unreported){alert('空檔分鐘合計必須等於 '+s.unreported+' 分鐘');return;}
+  const reason=document.getElementById('settlementReason').value.trim();
+  if(s.locked&&!reason){alert('管理員修正必須填寫原因');return;}
+  if(!confirm('確認後將鎖定此機台班別的日報新增，確定送出？'))return;
+  const btn=document.getElementById('settlementSaveBtn');btn.disabled=true;
+  try{
+    const res=await fetch(GAS_WEB_APP_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'confirmShiftSettlement',loginToken:lightLoginToken,date:s.date,shift:s.shift,machine:s.machine,version:s.version,settlementVersion:s.settlementVersion,gaps,adminReason:reason})});
+    const data=await res.json();if(!data.success)throw new Error(data.message);
+    alert(data.message);await loadShiftSettlement();
+  }catch(e){alert('❌ '+e.message)}finally{btn.disabled=false;}
+}
 </script>
 
 </body>
