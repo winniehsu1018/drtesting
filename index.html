@@ -722,15 +722,23 @@
         <section id="settlementPanel" style="margin-top:24px;border-top:1px solid #ddd;padding-top:15px;">
           <h3>班別工時確認</h3>
           <div class="time-hint">選擇日期、機台及班別後自動顯示未交代時間；每段可新增多項原因及分鐘數。</div>
-          <button type="button" class="admin-btn" onclick="loadShiftSettlement()">重新整理班別工時</button>
+          <button type="button" class="admin-btn" id="settlementRefreshBtn" onclick="loadShiftSettlement()" style="display:none">重新整理班別工時</button>
+          <div id="settlementChart" style="display:none;border:1px solid #ddd;border-radius:14px;padding:16px;margin:14px 0">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><strong id="cncChartTitle">機台班別工時確認</strong><span id="cncChartState" style="color:#a65b16;font-size:13px">待確認</span></div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:18px 0">
+              <div><small>應有工時</small><div id="cncChartNominal" style="font-size:25px;font-weight:bold">0</div><small>分鐘</small></div>
+              <div><small>已交代</small><div id="cncChartProduction" style="font-size:25px;font-weight:bold">0</div><small>分鐘</small></div>
+              <div><small>尚未交代</small><div id="cncChartRemaining" style="font-size:25px;font-weight:bold">0</div><small>分鐘</small></div>
+            </div>
+            <div style="display:flex;height:15px;border-radius:9px;overflow:hidden;background:#eee"><div id="cncChartDoneBar" style="background:#519c92;width:0%;transition:width .2s"></div><div id="cncChartLeftBar" style="background:#e9ad58;width:100%;transition:width .2s"></div></div>
+            <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:13px"><span id="cncChartDonePct">生產時段 0%</span><span id="cncChartLeftPct">已分類未生產 0%</span></div>
+          </div>
           <div id="settlementResult" role="status" aria-live="polite" style="margin-top:12px;font-size:14px;">請先選擇日期、機台及班別。</div>
           <div id="settlementEditor" style="display:none;">
             <div id="settlementSegments"></div>
             <div id="settlementTotals" style="margin:10px 0;"></div>
-            <div id="settlementAdminReason" style="display:none;margin:10px 0;">
-              <label>管理員修正原因（必填）</label><input id="settlementReason" type="text" placeholder="說明修正原因">
-            </div>
-            <button type="button" class="admin-btn" id="settlementSaveBtn" onclick="confirmShiftSettlement()">確認並鎖定班別工時</button>
+            <div id="settlementAdminReason" style="display:none"></div>
+            <button type="button" class="admin-btn" id="settlementSaveBtn" onclick="confirmShiftSettlement()" style="display:none">班別確認補救</button>
           </div>
         </section>
 
@@ -764,6 +772,11 @@
             <button type="button" class="admin-btn" id="adminPartsCacheBtn" onclick="runAdminAction('adminClearPartsCache')">🔄 更新件號快取</button>
             <button type="button" class="admin-btn" id="adminAuthCacheBtn" onclick="runAdminAction('adminClearAuthCache')">🔐 更新權限快取</button>
             <div id="adminStatus"></div>
+            <div style="margin-top:16px;border-top:1px solid #ffe082;padding-top:12px">
+              <h3>班別工時修正</h3>
+              <input id="settlementReason" type="text" placeholder="管理員修正原因（必填）" style="width:100%;box-sizing:border-box;padding:10px;margin:8px 0">
+              <button type="button" class="admin-btn" onclick="confirmShiftSettlement()">管理員修正班別工時</button>
+            </div>
         </div>
     </div>
 
@@ -2804,6 +2817,8 @@ function fetchLastRecord() {
             remark: document.getElementById('remark').value
         };
 
+        // 單鍵送出：先驗證所有班別空檔均已分配原因。
+        if(!cncValidateCombinedSettlement())return;
         // 彈出確認摘要對話框
         showConfirmSummary(pendingFormData, invalidItems);
     });
@@ -2874,7 +2889,7 @@ function fetchLastRecord() {
             headers: {
                 'Content-Type': 'text/plain;charset=utf-8'
             },
-            body: JSON.stringify(pendingFormData)
+            body: JSON.stringify({...pendingFormData,action:'submitReportAndSettlement',settlementGaps:cncCollectSettlementGaps()})
         })
         .then(res => {
             clearTimeout(timeoutId);
@@ -2891,6 +2906,12 @@ function fetchLastRecord() {
             submitBtn.textContent = "確認送出";
 
             if (data && data.success === false) {
+                if(data.partialSuccess){
+                    alert('⚠️ '+data.message);
+                    // 日報已寫入，保留 Request ID，不重送日報。
+                    const c=cncCurrentContext();if(c)loadShiftSettlement(c);
+                    return;
+                }
                 alert(data.message || "❌ 回報失敗，資料未寫入。");
                 return;
             }
@@ -3079,6 +3100,61 @@ function fetchLastRecord() {
 
 
 // ===== 班別工時確認：表單下方自動顯示、每段空檔可拆多項原因 =====
+
+// 進度卡：已交代 = 生產時段 + 已分類的非生產時段；圖條顯示時間用途，而非稼動率。
+function cncSetChart(nominal,production,locked,classified){
+  const c=cncCurrentContext();if(!c)return;
+  const n=Math.max(0,Number(nominal)||0),p=Math.max(0,Math.min(n,Number(production)||0));
+  const q=Math.max(0,Math.min(n-p,Number(classified)||0));
+  const accounted=p+q,remaining=Math.max(0,n-accounted);
+  const $=id=>document.getElementById(id);
+  $('settlementChart').style.display='block';
+  $('cncChartTitle').textContent=c.machine+' · '+c.date.slice(0,2)+'/'+c.date.slice(2)+' · '+c.shift;
+  $('cncChartState').textContent=locked?'已確認':'待確認';
+  $('cncChartState').style.color=locked?'#287d60':'#a65b16';
+  $('cncChartNominal').textContent=n;
+  $('cncChartProduction').textContent=accounted;
+  $('cncChartRemaining').textContent=remaining;
+  $('cncChartDoneBar').style.width=(n?100*p/n:0)+'%';
+  $('cncChartLeftBar').style.width=(n?100*q/n:0)+'%';
+  $('cncChartDonePct').textContent='生產時段 '+p+' 分（'+(n?100*p/n:0).toFixed(1)+'%）';
+  $('cncChartLeftPct').textContent='已分類未生產 '+q+' 分（'+(n?100*q/n:0).toFixed(1)+'%）';
+}
+function cncClassifiedMinutes(){
+  const s=cncSettlementSnapshot;
+  if(!s)return 0;
+  if(s.locked){
+    // 已確認紀錄以後端儲存明細為準，不依賴停用的輸入欄位。
+    return (s.gaps||[]).reduce((sum,g)=>sum+(Array.isArray(g.parts)?g.parts.reduce((v,p)=>v+(Number(p.minutes)||0),0):(Number(g.minutes)||0)),0);
+  }
+  return cncCollectSettlementGaps().reduce((sum,g)=>sum+g.parts.reduce((v,p)=>v+(Number(p.minutes)||0),0),0);
+}
+function cncUpdateChartFromSettlement(){
+  const s=cncSettlementSnapshot;
+  if(!s)return;
+  cncSetChart(s.nominal,s.production,s.locked,cncClassifiedMinutes());
+  const classified=cncClassifiedMinutes();
+  const left=Math.max(0,(Number(s.unreported)||0)-classified);
+  cncSettlementText('settlementResult',`應有工時 ${s.nominal} 分鐘｜已交代 ${(Number(s.production)||0)+classified} 分鐘｜尚未交代 ${left} 分鐘${s.locked?'｜已確認鎖定':''}`);
+}
+function cncReadTime(v){
+  const m=String(v||'').trim().match(/^(\d{1,2}):?(\d{2})$/);
+  if(!m)return null;const h=+m[1],min=+m[2];return h<24&&min<60?h*60+min:null;
+}
+function cncPreviewSettlement(){
+  const c=cncCurrentContext();if(!c)return;
+  const saved=cncSettlementSnapshot;
+  const nominal=saved&&cncSettlementContext&&JSON.stringify(cncSettlementContext)===JSON.stringify(c)?saved.nominal:(c.shift==='白班'?540:Number(document.getElementById('workingHours').value)||510);
+  const a=cncReadTime(document.getElementById('startTime').value),b=cncReadTime(document.getElementById('endTime').value);
+  const shiftStart=c.shift==='白班'?480:960;
+  let start=a,end=b;
+  if(c.shift==='中班'){if(start!==null&&start<270)start+=1440;if(end!==null&&end<270)end+=1440;}
+  const duration=start!==null&&end!==null&&start>=shiftStart&&end>start?end-start:0;
+  // 已儲存工時加上尚未送出的本次工時僅供畫面預覽；送出後由後端重新核算。
+  if(saved&&saved.locked){cncUpdateChartFromSettlement();return;}
+  cncSetChart(nominal,Math.min(nominal,(saved?(saved.version==='preview'?0:saved.production):0)+duration),saved&&saved.locked,saved?cncClassifiedMinutes():0);
+}
+
 let cncSettlementSnapshot=null;
 let cncSettlementContext=null;
 let cncSettlementTimer=null;
@@ -3092,7 +3168,8 @@ function cncCurrentContext(){
 function cncScheduleSettlementRefresh(){
   clearTimeout(cncSettlementTimer);
   const context=cncCurrentContext();
-  if(!context){++cncSettlementRequestSeq;cncSettlementSnapshot=null;cncSettlementText('settlementResult','請先選擇日期、機台及班別。');document.getElementById('settlementEditor').style.display='none';return;}
+  if(!context){document.getElementById('settlementChart').style.display='none';++cncSettlementRequestSeq;cncSettlementSnapshot=null;cncSettlementText('settlementResult','請先選擇日期、機台及班別。');document.getElementById('settlementEditor').style.display='none';return;}
+  cncPreviewSettlement();
   cncSettlementTimer=setTimeout(()=>loadShiftSettlement(context),650);
 }
 async function loadShiftSettlement(context){
@@ -3107,16 +3184,17 @@ async function loadShiftSettlement(context){
     if(seq!==cncSettlementRequestSeq)return;
     if(!data.success)throw new Error(data.message);
     cncSettlementSnapshot=data;
-    cncSettlementText('settlementResult',`應有工時 ${data.nominal} 分鐘｜已交代 ${data.production} 分鐘｜待交代 ${data.unreported} 分鐘${data.locked?'｜已確認鎖定':''}`);
+    cncSetChart(data.nominal,data.production,data.locked,0);
     const area=document.getElementById('settlementSegments');area.replaceChildren();
-    const disabled=data.locked&&!isCurrentUserAdmin;
+    const disabled=data.locked;
     data.gaps.forEach((g,i)=>{
       const group=document.createElement('div');group.className='invalid-box cnc-gap-group';group.dataset.index=i;
       group.style.marginBottom='14px';
-      const title=document.createElement('div');title.style.fontWeight='bold';title.textContent=`待交代時段 ${i+1}：${g.start}～${g.end}（時鐘差 ${g.wallMinutes} 分鐘）`;
+      const title=document.createElement('div');title.style.fontWeight='bold';title.textContent=`${disabled?'已交代':'待交代'}時段 ${i+1}：${g.start}～${g.end}（時鐘差 ${g.wallMinutes} 分鐘）`;
       const rows=document.createElement('div');rows.className='cnc-reason-rows';
       const add=document.createElement('button');add.type='button';add.textContent='＋ 新增原因';add.className='admin-btn';add.style.marginTop='8px';add.disabled=disabled;
       add.onclick=()=>cncAddReasonRow(rows,{minutes:0,type:'',description:''},disabled);
+      if(disabled)add.style.display='none';
       group.append(title,rows,add);area.appendChild(group);
       const parts=Array.isArray(g.parts)?g.parts:(g.type?[{minutes:g.minutes,type:g.type,description:g.description||''}]:[]);
       if(parts.length)parts.forEach(part=>cncAddReasonRow(rows,part,disabled));
@@ -3125,11 +3203,11 @@ async function loadShiftSettlement(context){
     });
     const hint=document.getElementById('settlementTotals');
     hint.textContent=data.shift==='中班'?'中班時鐘跨度可能包含休息時間，原因分鐘數總計須等於應有工時扣除已回報時段的剩餘分鐘數。':'同一空檔可拆分多項原因；所有原因分鐘數合計必須等於待交代分鐘數。';
-    document.getElementById('settlementAdminReason').style.display=data.locked&&isCurrentUserAdmin?'block':'none';
-    const btn=document.getElementById('settlementSaveBtn');btn.style.display=disabled?'none':'block';btn.textContent=data.locked?'管理員修正並重新確認':'確認並鎖定班別工時';
+    const btn=document.getElementById('settlementSaveBtn');btn.style.display='none';
     document.getElementById('settlementEditor').style.display='block';
     cncUpdateSettlementTotals();
-  }catch(e){if(seq===cncSettlementRequestSeq){cncSettlementSnapshot=null;cncSettlementText('settlementResult','❌ '+e.message);}}
+    cncUpdateChartFromSettlement();
+  }catch(e){if(seq===cncSettlementRequestSeq){cncSettlementSnapshot=null;cncSettlementText('settlementResult',e.message.includes('尚無日報')?'首次回報：請先填寫生產時段，下方將預覽待交代時間。':'❌ '+e.message);cncBuildInitialGaps();cncPreviewSettlement();}}
 }
 function cncAddReasonRow(container,part,disabled){
   const row=document.createElement('div');row.className='cnc-reason-row';row.style.cssText='display:grid;grid-template-columns:minmax(85px,1fr) minmax(80px,1fr) auto;gap:8px;margin-top:9px;align-items:center';
@@ -3143,6 +3221,7 @@ function cncAddReasonRow(container,part,disabled){
   select.onchange=update;minutes.oninput=update;desc.oninput=update;
   remove.onclick=()=>{row.remove();cncUpdateSettlementTotals()};
   [select,minutes,remove,desc].forEach(x=>x.disabled=disabled);
+  if(disabled)remove.style.display='none';
   row.append(select,minutes,remove,desc);container.appendChild(row);update();
 }
 function cncCollectSettlementGaps(){
@@ -3160,7 +3239,8 @@ function cncUpdateSettlementTotals(){
   const s=cncSettlementSnapshot;if(!s)return;
   const gaps=cncCollectSettlementGaps();const total=gaps.reduce((a,g)=>a+g.parts.reduce((b,p)=>b+p.minutes,0),0);
   const display=document.getElementById('settlementTotals');
-  display.textContent=`已分類 ${total} / 待交代 ${s.unreported} 分鐘｜尚未分類 ${Math.max(0,s.unreported-total)} 分鐘${total>s.unreported?'（超出，請修正）':''}`;
+  display.textContent=`已分類 ${total} / 未生產時段 ${s.unreported} 分鐘｜尚未分類 ${Math.max(0,s.unreported-total)} 分鐘${total>s.unreported?'（超出，請修正）':''}`;
+  cncUpdateChartFromSettlement();
 }
 async function confirmShiftSettlement(){
   const s=cncSettlementSnapshot;if(!s)return;
@@ -3185,6 +3265,64 @@ async function confirmShiftSettlement(){
     alert(data.message);await loadShiftSettlement(cncSettlementContext);
   }catch(e){alert('❌ '+e.message)}finally{btn.disabled=false;}
 }
+
+function cncBuildInitialGaps(){
+  if(cncSettlementSnapshot)return;
+  const c=cncCurrentContext();if(!c)return;
+  const a=cncReadTime(document.getElementById('startTime').value),b=cncReadTime(document.getElementById('endTime').value);
+  if(a===null||b===null)return;
+  const start=c.shift==='白班'?480:960,end=c.shift==='白班'?1020:1650;
+  let x=a,y=b;if(c.shift==='中班'){if(x<270)x+=1440;if(y<270)y+=1440;}
+  if(x<start||y>end||x>=y)return;
+  const nominal=c.shift==='白班'?540:Number(document.getElementById('workingHours').value)||510;
+  const wallGaps=[];
+  if(x>start)wallGaps.push({start:cncFmtClock(start),end:cncFmtClock(x),wallMinutes:x-start});
+  if(y<end)wallGaps.push({start:cncFmtClock(y),end:cncFmtClock(end),wallMinutes:end-y});
+  const unreported=nominal-(y-x);
+  cncSettlementSnapshot={date:c.date,shift:c.shift,machine:c.machine,nominal,production:y-x,unreported,gaps:wallGaps,locked:false,version:'preview'};
+  cncSettlementContext=c;
+  const area=document.getElementById('settlementSegments');area.replaceChildren();
+  wallGaps.forEach((g,i)=>{
+    const group=document.createElement('div');group.className='invalid-box cnc-gap-group';group.dataset.index=i;group.style.marginBottom='14px';
+    const title=document.createElement('div');title.style.fontWeight='bold';title.textContent=`待交代時段 ${i+1}：${g.start}～${g.end}（時鐘差 ${g.wallMinutes} 分鐘）`;
+    const rows=document.createElement('div');rows.className='cnc-reason-rows';
+    const add=document.createElement('button');add.type='button';add.textContent='＋ 新增原因';add.className='admin-btn';add.onclick=()=>cncAddReasonRow(rows,{minutes:0,type:'',description:''},false);
+    group.append(title,rows,add);area.appendChild(group);
+    cncAddReasonRow(rows,{minutes:0,type:'',description:''},false);
+  });
+  document.getElementById('settlementEditor').style.display='block';
+  cncUpdateSettlementTotals();
+}
+function cncFmtClock(m){m%=1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');}
+function cncValidateCombinedSettlement(){
+  const s=cncSettlementSnapshot;
+  if(!s){alert('請先確認實際生產開始／結束時間，並填寫下方待交代原因');return false;}
+  if(s.locked){alert('該班別已確認鎖定，不能新增日報');return false;}
+  const gaps=cncCollectSettlementGaps();let total=0;
+  for(let i=0;i<gaps.length;i++){
+    let sum=0;
+    for(const p of gaps[i].parts){
+      if(!Number.isInteger(p.minutes)||p.minutes<=0||!p.type||(p.type==='其他'&&!p.description)){
+        alert('請為每段空檔填寫原因、正整數分鐘；其他必須說明');return false;
+      }
+      sum+=p.minutes;
+    }
+    if(sum>Number(s.gaps[i].wallMinutes)){alert('空檔原因分鐘數超過時段長度');return false;}
+    total+=sum;
+  }
+  if(total!==s.unreported){alert('待交代 '+s.unreported+' 分鐘，目前已分類 '+total+' 分鐘');return false;}
+  return true;
+}
+['startTime','endTime','workingHours'].forEach(id=>{
+  const el=document.getElementById(id);if(!el)return;
+  el.addEventListener('input',()=>{
+    // 只有尚無正式日報時，重新建立預覽空檔；不覆蓋已儲存日報的正式來源。
+    if(cncSettlementSnapshot&&cncSettlementSnapshot.version==='preview')cncSettlementSnapshot=null;
+    cncBuildInitialGaps();cncPreviewSettlement();
+  });
+  el.addEventListener('change',()=>{if(!cncSettlementSnapshot)cncBuildInitialGaps();cncPreviewSettlement();});
+});
+
 // 表單日期、班別、機台變動時自動查詢；未送出的預填時間不計入正式工時。
 ['date','machine','shift'].forEach(id=>{
   const el=document.getElementById(id);if(!el)return;
