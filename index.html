@@ -702,6 +702,8 @@
                 ＋ 新增無效工時項目
             </button>
 
+            <div id="effectiveMinutesHint" class="time-hint" aria-live="polite"></div>
+
             <!-- 備註 -->
             <div
                 class="form-group"
@@ -1121,25 +1123,69 @@ function checkUserPermission(userId, displayName) {
     // =========================================================
     // 預設帶入無效工時項目
     // =========================================================
-    function setDefaultInvalidItems() {
-        const boxes = document.querySelectorAll('.invalid-box');
-        
-        // 項目 1 預設：清潔 20 分鐘
-        if (boxes[0]) {
-            const typeSelect1 = boxes[0].querySelector('.invalidType');
-            const minInput1 = boxes[0].querySelector('.invalidMin');
-            if (typeSelect1) typeSelect1.value = '清潔';
-            if (minInput1) minInput1.value = '20';
-        }
+    let routineInspectionKey = '';
+    let routineInspectionRecorded = false;
 
-        // 項目 2 預設：點檢 3 分鐘
-        if (boxes[1]) {
-            const typeSelect2 = boxes[1].querySelector('.invalidType');
-            const minInput2 = boxes[1].querySelector('.invalidMin');
-            if (typeSelect2) typeSelect2.value = '點檢';
-            if (minInput2) minInput2.value = '3';
+    function routineContextKey() {
+        return JSON.stringify(['date', 'shift', 'machine'].map(id => document.getElementById(id).value.trim()));
+    }
+
+    function updateRoutineMinutes() {
+        const start = document.getElementById('startTime').value.trim();
+        const end = document.getElementById('endTime').value.trim();
+        const validTime = value => /^(?:[01]?\d|2[0-3]):[0-5]\d$/.test(value);
+        const shift = document.getElementById('shift').value;
+        const denominator = Number(document.getElementById('workingHours').value);
+        const duration = validTime(start) && validTime(end)
+            ? parseMinutes(end, shift === '中班') - parseMinutes(start, shift === '中班') : 0;
+        const active = duration > 0 && denominator > 0 && Number.isFinite(denominator);
+        let otherInvalidMinutes = 0;
+        document.querySelectorAll('.invalid-box').forEach(box => {
+            const type = box.querySelector('.invalidType').value;
+            const minutes = Number(box.querySelector('.invalidMin').value);
+            if (['架機', '換刀', '待料', '換批', '其他'].includes(type) && Number.isFinite(minutes) && minutes > 0) {
+                otherInvalidMinutes += minutes;
+            }
+        });
+        const cleaningBase = Math.max(0, duration - otherInvalidMinutes);
+        const cleaning = active ? Math.round(20 * Math.min(cleaningBase / denominator, 1)) : 0;
+        const alreadyInspected = routineInspectionKey === routineContextKey() && routineInspectionRecorded;
+        const inspection = active && !alreadyInspected ? 3 : 0;
+        document.querySelectorAll('.invalid-box').forEach(box => {
+            const type = box.querySelector('.invalidType').value;
+            const input = box.querySelector('.invalidMin');
+            if (type === '清潔' || type === '點檢') {
+                input.value = String(type === '清潔' ? cleaning : inspection);
+                input.readOnly = true;
+            } else {
+                input.readOnly = false;
+            }
+        });
+        const hint = document.getElementById('effectiveMinutesHint');
+        if (hint) {
+            let totalInvalid = 0;
+            document.querySelectorAll('.invalid-box').forEach(box => {
+                const type = box.querySelector('.invalidType').value;
+                const minutes = Number(box.querySelector('.invalidMin').value);
+                if (type && type !== '無' && Number.isFinite(minutes) && minutes > 0) totalInvalid += minutes;
+            });
+            hint.textContent = active
+                ? `生產區間 ${duration} 分鐘｜無效工時 ${totalInvalid} 分鐘｜有效工時 ${duration - totalInvalid} 分鐘`
+                : '填入完整開始與結算時間後，自動計算清潔、點檢與有效工時。';
         }
     }
+
+    function setDefaultInvalidItems() {
+        const boxes = document.querySelectorAll('.invalid-box');
+        if (boxes[0]) boxes[0].querySelector('.invalidType').value = '清潔';
+        if (boxes[1]) boxes[1].querySelector('.invalidType').value = '點檢';
+        updateRoutineMinutes();
+    }
+
+    // 使用委派事件，表單重設重建無效工時欄後仍可即時計算。
+    document.getElementById('reportForm').addEventListener('input', updateRoutineMinutes);
+    document.getElementById('reportForm').addEventListener('change', updateRoutineMinutes);
+    document.getElementById('reportForm').addEventListener('focusout', updateRoutineMinutes);
 
 
     // =========================================================
@@ -1809,6 +1855,10 @@ function fetchLastRecord() {
 
     const requestSeq =
         ++lastRecordRequestSeq;
+    const routineRequestKey = routineContextKey();
+    routineInspectionKey = '';
+    routineInspectionRecorded = false;
+    updateRoutineMinutes();
 
 
     // =====================================================
@@ -1845,6 +1895,9 @@ function fetchLastRecord() {
             return;
         }
 
+
+        routineInspectionKey = routineRequestKey;
+        routineInspectionRecorded = data.inspectionRecorded === true;
 
         const hintEl =
             document.getElementById('autoHint');
@@ -1995,6 +2048,8 @@ function fetchLastRecord() {
             document.getElementById('endTime').value = '17:00';
             setWorkingHours('540');
         }
+    }).finally(() => {
+        if (requestSeq === lastRecordRequestSeq) updateRoutineMinutes();
     });
 }
 
@@ -2059,6 +2114,7 @@ function fetchLastRecord() {
 
         updateInvalidLabels();
         checkAddButtonState();
+        updateRoutineMinutes();
     }
 
 
@@ -2450,6 +2506,7 @@ function fetchLastRecord() {
 
     function setWorkingHours(val) {
         document.getElementById('workingHours').value = val;
+        updateRoutineMinutes();
         const display = document.getElementById('workingHoursDisplay');
         if (val === '540') {
             display.value = '540 分鐘 (標準白班)';
@@ -2566,6 +2623,7 @@ function fetchLastRecord() {
 
     document.getElementById('reportForm').addEventListener('submit', function (e) {
         e.preventDefault();
+        updateRoutineMinutes();
 
         if (!userProfile.userId) {
             alert("⚠️ 尚未取得 LINE 身分識別，請重新整理頁面！");
@@ -2647,7 +2705,8 @@ function fetchLastRecord() {
                 hasNegativeInvalid = true;
             }
 
-            if (type !== "" && type !== "無" && (minInput === "" || min <= 0)) {
+            const automaticZero = (type === '清潔' || type === '點檢') && minInput !== '' && min === 0;
+            if (type !== "" && type !== "無" && !automaticZero && (minInput === "" || min <= 0)) {
                 hasInvalidConfigError = true;
             }
 
@@ -3061,3 +3120,4 @@ function fetchLastRecord() {
 
 </body>
 </html>
+
