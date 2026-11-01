@@ -638,8 +638,6 @@
                             <option value="">無</option>
                             <option value="架機">架機</option>
                             <option value="換刀">換刀</option>
-                            <option value="清潔">清潔</option>
-                            <option value="點檢">點檢</option>
                             <option value="待料">待料</option>
                             <option value="換批">換批</option>
                             <option value="其他">其他</option>
@@ -673,8 +671,6 @@
                             <option value="">無</option>
                             <option value="架機">架機</option>
                             <option value="換刀">換刀</option>
-                            <option value="清潔">清潔</option>
-                            <option value="點檢">點檢</option>
                             <option value="待料">待料</option>
                             <option value="換批">換批</option>
                             <option value="其他">其他</option>
@@ -1151,34 +1147,22 @@ function checkUserPermission(userId, displayName) {
         const cleaning = active ? Math.round(20 * Math.min(cleaningBase / denominator, 1)) : 0;
         const alreadyInspected = routineInspectionKey === routineContextKey() && routineInspectionRecorded;
         const inspection = active && !alreadyInspected ? 3 : 0;
-        document.querySelectorAll('.invalid-box').forEach(box => {
-            const type = box.querySelector('.invalidType').value;
-            const input = box.querySelector('.invalidMin');
-            if (type === '清潔' || type === '點檢') {
-                input.value = String(type === '清潔' ? cleaning : inspection);
-                input.readOnly = true;
-            } else {
-                input.readOnly = false;
-            }
-        });
         const hint = document.getElementById('effectiveMinutesHint');
         if (hint) {
-            let totalInvalid = 0;
+            let totalInvalid = cleaning + inspection;
             document.querySelectorAll('.invalid-box').forEach(box => {
                 const type = box.querySelector('.invalidType').value;
                 const minutes = Number(box.querySelector('.invalidMin').value);
                 if (type && type !== '無' && Number.isFinite(minutes) && minutes > 0) totalInvalid += minutes;
             });
             hint.textContent = active
-                ? `生產區間 ${duration} 分鐘｜無效工時 ${totalInvalid} 分鐘｜有效工時 ${duration - totalInvalid} 分鐘`
+                ? `自動計算：清潔 ${cleaning} 分鐘、點檢 ${inspection} 分鐘｜生產區間 ${duration} 分鐘｜無效工時 ${totalInvalid} 分鐘｜有效工時 ${duration - totalInvalid} 分鐘`
                 : '填入完整開始與結算時間後，自動計算清潔、點檢與有效工時。';
         }
+        return { cleaning, inspection };
     }
 
     function setDefaultInvalidItems() {
-        const boxes = document.querySelectorAll('.invalid-box');
-        if (boxes[0]) boxes[0].querySelector('.invalidType').value = '清潔';
-        if (boxes[1]) boxes[1].querySelector('.invalidType').value = '點檢';
         updateRoutineMinutes();
     }
 
@@ -2080,8 +2064,6 @@ function fetchLastRecord() {
                     <option value="">無</option>
                     <option value="架機">架機</option>
                     <option value="換刀">換刀</option>
-                    <option value="清潔">清潔</option>
-                    <option value="點檢">點檢</option>
                     <option value="待料">待料</option>
                     <option value="換批">換批</option>
                     <option value="其他">其他</option>
@@ -2705,8 +2687,7 @@ function fetchLastRecord() {
                 hasNegativeInvalid = true;
             }
 
-            const automaticZero = (type === '清潔' || type === '點檢') && minInput !== '' && min === 0;
-            if (type !== "" && type !== "無" && !automaticZero && (minInput === "" || min <= 0)) {
+            if (type !== "" && type !== "無" && (minInput === "" || min <= 0)) {
                 hasInvalidConfigError = true;
             }
 
@@ -2737,9 +2718,15 @@ function fetchLastRecord() {
         }
 
         if (hasDuplicateInvalidType) {
-            alert("❌ 無效工時項目重複！\n\n相同的無效工時項目（例如：清潔、換刀等）只能選擇一次，請將相同項目的時間合併計算，或選擇不同的項目。");
+            alert("❌ 無效工時項目重複！\n\n相同的無效工時項目（例如：架機、換刀等）只能選擇一次，請將相同項目的時間合併計算，或選擇不同的項目。");
             return;
         }
+
+        // 清潔與點檢由系統產生，員工只填其他無效工時。
+        const routine = updateRoutineMinutes();
+        if (routine.cleaning > 0) invalidItems.push({ type: '清潔', min: routine.cleaning });
+        if (routine.inspection > 0) invalidItems.push({ type: '點檢', min: routine.inspection });
+        totalInvalidMinutes += routine.cleaning + routine.inspection;
 
         const workingHours = Number(document.getElementById('workingHours').value);
 
@@ -3044,8 +3031,6 @@ function fetchLastRecord() {
                         <option value="">無</option>
                         <option value="架機">架機</option>
                         <option value="換刀">換刀</option>
-                        <option value="清潔">清潔</option>
-                        <option value="點檢">點檢</option>
                         <option value="待料">待料</option>
                         <option value="換批">換批</option>
                         <option value="其他">其他</option>
@@ -3079,8 +3064,6 @@ function fetchLastRecord() {
                         <option value="">無</option>
                         <option value="架機">架機</option>
                         <option value="換刀">換刀</option>
-                        <option value="清潔">清潔</option>
-                        <option value="點檢">點檢</option>
                         <option value="待料">待料</option>
                         <option value="換批">換批</option>
                         <option value="其他">其他</option>
