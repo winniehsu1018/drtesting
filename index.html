@@ -1121,6 +1121,7 @@ function checkUserPermission(userId, displayName) {
     // =========================================================
     let routineInspectionKey = '';
     let routineInspectionRecorded = false;
+    let routineCleaningSummary = { baseMinutes: 0, allocatedMinutes: 0 };
 
     function routineContextKey() {
         return JSON.stringify(['date', 'shift', 'machine'].map(id => document.getElementById(id).value.trim()));
@@ -1144,7 +1145,11 @@ function checkUserPermission(userId, displayName) {
             }
         });
         const cleaningBase = Math.max(0, duration - otherInvalidMinutes);
-        const cleaning = active ? Math.round(20 * Math.min(cleaningBase / denominator, 1)) : 0;
+        const previous = routineInspectionKey === routineContextKey()
+            ? routineCleaningSummary : { baseMinutes: 0, allocatedMinutes: 0 };
+        const cleaning = active ? Math.max(0,
+            Math.round(20 * Math.min((previous.baseMinutes + cleaningBase) / denominator, 1))
+            - previous.allocatedMinutes) : 0;
         const alreadyInspected = routineInspectionKey === routineContextKey() && routineInspectionRecorded;
         const inspection = active && !alreadyInspected ? 3 : 0;
         const hint = document.getElementById('effectiveMinutesHint');
@@ -1842,6 +1847,7 @@ function fetchLastRecord() {
     const routineRequestKey = routineContextKey();
     routineInspectionKey = '';
     routineInspectionRecorded = false;
+    routineCleaningSummary = { baseMinutes: 0, allocatedMinutes: 0 };
     updateRoutineMinutes();
 
 
@@ -1882,6 +1888,11 @@ function fetchLastRecord() {
 
         routineInspectionKey = routineRequestKey;
         routineInspectionRecorded = data.inspectionRecorded === true;
+        const summary = data.cleaningSummary;
+        routineCleaningSummary = summary && Number.isFinite(summary.baseMinutes)
+            && summary.baseMinutes >= 0 && Number.isFinite(summary.allocatedMinutes)
+            && summary.allocatedMinutes >= 0
+            ? summary : { baseMinutes: 0, allocatedMinutes: 0 };
 
         const hintEl =
             document.getElementById('autoHint');
