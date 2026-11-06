@@ -1127,6 +1127,9 @@ function checkUserPermission(userId, displayName) {
         return JSON.stringify(['date', 'shift', 'machine'].map(id => document.getElementById(id).value.trim()));
     }
 
+    // These machines do not require automatically allocated cleaning time.
+    const ROUTINE_CLEANING_EXCLUDED_MACHINES = new Set(['RT-11', 'RT-12', 'PCL-A20-001', 'ARC-05-01']);
+
     function updateRoutineMinutes() {
         const start = document.getElementById('startTime').value.trim();
         const end = document.getElementById('endTime').value.trim();
@@ -1147,7 +1150,9 @@ function checkUserPermission(userId, displayName) {
         const cleaningBase = Math.max(0, duration - otherInvalidMinutes);
         const previous = routineInspectionKey === routineContextKey()
             ? routineCleaningSummary : { baseMinutes: 0, allocatedMinutes: 0 };
-        const cleaning = active ? Math.max(0,
+        const machine = document.getElementById('machine').value.trim().toUpperCase();
+        const cleaningExcluded = ROUTINE_CLEANING_EXCLUDED_MACHINES.has(machine);
+        const cleaning = active && !cleaningExcluded ? Math.max(0,
             Math.round(20 * Math.min((previous.baseMinutes + cleaningBase) / denominator, 1))
             - previous.allocatedMinutes) : 0;
         const alreadyInspected = routineInspectionKey === routineContextKey() && routineInspectionRecorded;
