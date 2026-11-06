@@ -637,6 +637,7 @@
                         <select class="invalidType" disabled>
                             <option value="">無</option>
                             <option value="架機">架機</option>
+                            <option value="調機">調機</option>
                             <option value="換刀">換刀</option>
                             <option value="待料">待料</option>
                             <option value="換批">換批</option>
@@ -670,6 +671,7 @@
                         <select class="invalidType" disabled>
                             <option value="">無</option>
                             <option value="架機">架機</option>
+                            <option value="調機">調機</option>
                             <option value="換刀">換刀</option>
                             <option value="待料">待料</option>
                             <option value="換批">換批</option>
@@ -1143,7 +1145,7 @@ function checkUserPermission(userId, displayName) {
         document.querySelectorAll('.invalid-box').forEach(box => {
             const type = box.querySelector('.invalidType').value;
             const minutes = Number(box.querySelector('.invalidMin').value);
-            if (['架機', '換刀', '待料', '換批', '其他'].includes(type) && Number.isFinite(minutes) && minutes > 0) {
+            if (['架機', '調機', '換刀', '待料', '換批', '其他'].includes(type) && Number.isFinite(minutes) && minutes > 0) {
                 otherInvalidMinutes += minutes;
             }
         });
@@ -1156,7 +1158,7 @@ function checkUserPermission(userId, displayName) {
             Math.round(20 * Math.min((previous.baseMinutes + cleaningBase) / denominator, 1))
             - previous.allocatedMinutes) : 0;
         const alreadyInspected = routineInspectionKey === routineContextKey() && routineInspectionRecorded;
-        const inspection = active && !alreadyInspected ? 3 : 0;
+        const inspection = active && shift !== '中班' && !alreadyInspected ? 3 : 0;
         const hint = document.getElementById('effectiveMinutesHint');
         if (hint) {
             let totalInvalid = cleaning + inspection;
@@ -2079,6 +2081,7 @@ function fetchLastRecord() {
                 <select class="invalidType">
                     <option value="">無</option>
                     <option value="架機">架機</option>
+                    <option value="調機">調機</option>
                     <option value="換刀">換刀</option>
                     <option value="待料">待料</option>
                     <option value="換批">換批</option>
@@ -3046,6 +3049,7 @@ function fetchLastRecord() {
                     <select class="invalidType" disabled>
                         <option value="">無</option>
                         <option value="架機">架機</option>
+                        <option value="調機">調機</option>
                         <option value="換刀">換刀</option>
                         <option value="待料">待料</option>
                         <option value="換批">換批</option>
@@ -3079,6 +3083,7 @@ function fetchLastRecord() {
                     <select class="invalidType" disabled>
                         <option value="">無</option>
                         <option value="架機">架機</option>
+                        <option value="調機">調機</option>
                         <option value="換刀">換刀</option>
                         <option value="待料">待料</option>
                         <option value="換批">換批</option>
