@@ -759,7 +759,8 @@
         <div id="summaryText" class="summary-list"></div>
         <div class="modal-buttons">
             <button type="button" class="modal-btn btn-cancel" onclick="closeConfirmModal()">返回修改</button>
-            <button type="button" class="modal-btn btn-confirm" onclick="executeSubmit()">確認無誤，送出</button>
+            <button type="button" class="modal-btn btn-confirm" onclick="executeSubmit()">補填並送出</button>
+            <button type="button" id="skipWorktimeAttribution" class="modal-btn btn-cancel" onclick="executeSubmit(true)" hidden>略過並送出</button>
         </div>
     </div>
 </div>
@@ -2596,7 +2597,7 @@ function fetchLastRecord() {
     function generateRequestId() {
         const timestamp = Date.now();
         const random = Math.random().toString(36).substring(2, 10);
-        return timestamp + '-' + random;
+        return 'wt3-' + timestamp + '-' + random;
     }
 
 
@@ -2877,8 +2878,11 @@ function fetchLastRecord() {
         if (invalidItems.length > 0) {
             html += `<br><b>【無效工時明細】</b><br>`;
             invalidItems.forEach(item => {
-                html += `&nbsp;&nbsp;• ${item.type}：${item.min} 分鐘<br>`;
+                html += `<div class="worktime-attribution">• ${item.type}：${item.min} 分鐘
+                    <label>區間內 <input type="number" min="0" step="1" size="4"></label>
+                    <label>區間外 <input type="number" min="0" step="1" size="4"></label></div>`;
             });
+            html += '<p>請分別填寫區間內、區間外分鐘（沒有請填 0）。略過時會標為待確認。</p>';
         }
 
         if (data.remark) {
@@ -2886,6 +2890,7 @@ function fetchLastRecord() {
         }
 
         document.getElementById('summaryText').innerHTML = html;
+        document.getElementById('skipWorktimeAttribution').hidden = invalidItems.length === 0;
         document.getElementById('confirmModal').style.display = 'flex';
     }
 
@@ -2898,7 +2903,30 @@ function fetchLastRecord() {
     // 實際發送資料至 GAS (從對話框點擊確認後執行)
     // =========================================================
 
-    function executeSubmit() {
+    function executeSubmit(skipAttribution = false) {
+        const items = pendingFormData.invalidItems;
+        const attribution = {};
+        let outside = 0;
+        if (!skipAttribution) document.querySelectorAll('#summaryText .worktime-attribution').forEach((line, i) => {
+            const [insideInput, outsideInput] = line.querySelectorAll('input');
+            const inside = insideInput.valueAsNumber;
+            const out = outsideInput.valueAsNumber;
+            if (Number.isInteger(inside) && Number.isInteger(out) && inside >= 0 && out >= 0 &&
+                inside + out === items[i].min) {
+                attribution[items[i].type] = { inside, outside: out };
+                outside += out;
+            }
+        });
+        const mid = pendingFormData.shift === '中班';
+        const start = parseMinutes(lastRecordEndTime || pendingFormData.startTime, mid);
+        const end = pendingFormData.endTime ? parseMinutes(pendingFormData.endTime, mid) : start;
+        const shiftEnd = (mid ? 1020 : 480) + pendingFormData.workingHours;
+        const difference = shiftEnd - start - (end - parseMinutes(pendingFormData.startTime, mid)) - outside;
+        const pending = Object.keys(attribution).length !== items.length || !pendingFormData.endTime;
+        if (!skipAttribution && (difference || pending) && !confirm(
+            `暫估本筆至班末工時差額 ${difference} 分鐘。${pending ? ' 無效工時歸屬或結算時間待確認。' : ''}\n確定略過並送出？按取消可補填。`
+        )) return;
+        pendingFormData.worktimeAttribution = attribution;
         closeConfirmModal();
 
         document.getElementById('requestIdDisplay').textContent = currentRequestId;
