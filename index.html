@@ -149,6 +149,21 @@
             margin-top: 10px;
         }
 
+        .shift-time-guidance {
+            margin: 0 0 16px;
+            padding: 10px 12px;
+            border-left: 3px solid #3975a9;
+            border-radius: 4px;
+            background: #eef6ff;
+            color: #233a50;
+            font-size: 14px;
+            line-height: 1.6;
+            overflow-wrap: anywhere;
+        }
+
+        .shift-time-guidance p { margin: 0; }
+        .shift-time-guidance p + p { margin-top: 6px; }
+
         .time-hint {
             font-size: 12px;
             color: #888;
@@ -529,9 +544,7 @@
 
             <!-- 開始時間 -->
             <div class="form-group">
-                <label for="startTime">
-                    開始時間 (若有上一筆將自動帶入結算時間)：
-                </label>
+                <label for="startTime">開始時間</label>
                 <input
                     type="text"
                     id="startTime"
@@ -550,9 +563,7 @@
 
             <!-- 結算時間 -->
             <div class="form-group">
-                <label for="endTime">
-                    結算時間 (有填數量或無效工時則必填)：
-                </label>
+                <label for="endTime">結算時間</label>
                 <input
                     type="text"
                     id="endTime"
@@ -566,6 +577,11 @@
                 <div class="time-hint">
                     💡 輸入 4 位數字（如 1700，離開時自動轉為 17:00）
                 </div>
+            </div>
+
+            <div class="shift-time-guidance">
+                <p>該班別如有開機作業，開始至結算時間應涵蓋該班別的工作時間，包含加工、架機、調機及停機，不可只填實際加工時間。</p>
+                <p>同一設備如有多筆生產紀錄，請依換批時間接續填寫，避免時間重疊。尚未發生的工時不得提前回報。</p>
             </div>
 
             <!-- 應有工時 -->
