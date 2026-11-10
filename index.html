@@ -757,10 +757,12 @@
     <div class="modal-content">
         <h3>📋 請確認回報資料</h3>
         <div id="summaryText" class="summary-list"></div>
+        <label><input id="closeShiftReport" type="checkbox" onchange="updateWorktimeConfirmation()"> 結束本班回報</label>
+        <p id="shiftCoverageWarning" aria-live="polite"></p>
         <div class="modal-buttons">
-            <button type="button" class="modal-btn btn-cancel" onclick="closeConfirmModal()">返回修改</button>
-            <button type="button" class="modal-btn btn-confirm" onclick="executeSubmit()">補填並送出</button>
-            <button type="button" id="skipWorktimeAttribution" class="modal-btn btn-cancel" onclick="executeSubmit(true)" hidden>略過並送出</button>
+            <button type="button" class="modal-btn btn-cancel" onclick="closeConfirmModal()">補充無效工時／返回修改</button>
+            <button type="button" class="modal-btn btn-confirm" id="sendShiftReport" onclick="executeSubmit()">送出</button>
+            <button type="button" id="continueShiftReport" class="modal-btn btn-confirm" onclick="executeSubmit(true)" hidden>填寫下一筆</button>
         </div>
     </div>
 </div>
@@ -1124,14 +1126,31 @@ function checkUserPermission(userId, displayName) {
     // =========================================================
     let routineInspectionKey = '';
     let routineInspectionRecorded = false;
+    let shiftIntervals = null;
+    let shiftReportDate = null;
     let routineCleaningSummary = { baseMinutes: 0, allocatedMinutes: 0 };
 
     function routineContextKey() {
         return JSON.stringify(['date', 'shift', 'machine'].map(id => document.getElementById(id).value.trim()));
     }
 
-    // These machines do not require automatically allocated cleaning time.
-    const ROUTINE_CLEANING_EXCLUDED_MACHINES = new Set(['RT-11', 'RT-12', 'PCL-A20-001', 'ARC-05-01']);
+    function getShiftCoverage(start, end, shift, hours) {
+        if (routineInspectionKey !== routineContextKey() || !shiftIntervals || !hours) return null;
+        const mid = shift === '中班';
+        const first = mid ? 1020 : 480;
+        const last = first + hours;
+        const times = [...shiftIntervals, [start, end]].filter(pair => pair.every(Boolean))
+            .map(pair => pair.map(time => parseMinutes(time, mid))).sort((a, b) => a[0] - b[0]);
+        let covered = 0;
+        let boundary = first;
+        times.forEach(([from, to]) => {
+            if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return;
+            const end = Math.min(last, to);
+            covered += Math.max(0, end - Math.max(boundary, from));
+            boundary = Math.max(boundary, end);
+        });
+        return { covered, remaining: hours - covered, end: last };
+    }
 
     function updateRoutineMinutes() {
         const start = document.getElementById('startTime').value.trim();
@@ -1153,9 +1172,9 @@ function checkUserPermission(userId, displayName) {
         const cleaningBase = Math.max(0, duration - otherInvalidMinutes);
         const previous = routineInspectionKey === routineContextKey()
             ? routineCleaningSummary : { baseMinutes: 0, allocatedMinutes: 0 };
-        const machine = document.getElementById('machine').value.trim().toUpperCase();
-        const cleaningExcluded = ROUTINE_CLEANING_EXCLUDED_MACHINES.has(machine);
-        const cleaning = active && !cleaningExcluded ? Math.max(0,
+        const cleaningExempt = ['RT-11', 'RT-12', 'PCL-A20-001', 'ARC-05-01']
+            .includes(String(selectedMachine || machineInput.value).trim().toUpperCase());
+        const cleaning = active && !cleaningExempt ? Math.max(0,
             Math.round(20 * Math.min((previous.baseMinutes + cleaningBase) / denominator, 1))
             - previous.allocatedMinutes) : 0;
         const alreadyInspected = routineInspectionKey === routineContextKey() && routineInspectionRecorded;
@@ -1169,8 +1188,10 @@ function checkUserPermission(userId, displayName) {
                 if (type && type !== '無' && Number.isFinite(minutes) && minutes > 0) totalInvalid += minutes;
             });
             hint.textContent = active
-                ? `自動計算：清潔 ${cleaning} 分鐘、點檢 ${inspection} 分鐘｜生產區間 ${duration} 分鐘｜無效工時 ${totalInvalid} 分鐘｜有效工時 ${duration - totalInvalid} 分鐘`
-                : '填入完整開始與結算時間後，自動計算清潔、點檢與有效工時。';
+                ? `自動計算：清潔 ${cleaning} 分鐘、點檢 ${inspection} 分鐘｜F/G 區間 ${duration} 分鐘｜無效工時 ${totalInvalid} 分鐘｜暫算有效工時 ${duration - totalInvalid} 分鐘`
+                : '填入完整開始與結算時間後，自動計算清潔與點檢。';
+            const coverage = getShiftCoverage(start, end, shift, denominator);
+            if (coverage) hint.textContent += '｜本班應有 ' + denominator + ' 分鐘，目前已涵蓋 ' + coverage.covered + ' 分鐘，尚待交代 ' + coverage.remaining + ' 分鐘。';
         }
         return { cleaning, inspection };
     }
@@ -1827,7 +1848,7 @@ function fetchOptions() {
     // =========================================================
     // 取得上一筆資料 (已完全移除應有工時帶入)
     // =========================================================
-function fetchLastRecord() {
+function fetchLastRecord(continuingBatch = false) {
 
     const date =
         document.getElementById('date').value.trim();
@@ -1854,6 +1875,8 @@ function fetchLastRecord() {
         ++lastRecordRequestSeq;
     const routineRequestKey = routineContextKey();
     routineInspectionKey = '';
+    shiftIntervals = null;
+    shiftReportDate = null;
     routineInspectionRecorded = false;
     routineCleaningSummary = { baseMinutes: 0, allocatedMinutes: 0 };
     updateRoutineMinutes();
@@ -1895,6 +1918,8 @@ function fetchLastRecord() {
 
 
         routineInspectionKey = routineRequestKey;
+        shiftIntervals = Array.isArray(data.shiftIntervals) ? data.shiftIntervals : null;
+        shiftReportDate = data.shiftDate || null;
         routineInspectionRecorded = data.inspectionRecorded === true;
         const summary = data.cleaningSummary;
         routineCleaningSummary = summary && Number.isFinite(summary.baseMinutes)
@@ -1908,12 +1933,9 @@ function fetchLastRecord() {
         const startTimeEl =
             document.getElementById('startTime');
 
-        // 白班每次「上一筆查詢」完成後，都先確保標準時間存在。
-        // 後面若真的有上一筆 endTime，只覆蓋開始時間。
-        // 這可避免後端 success=true 但沒有 endTime 時，把第 5 筆之後留成空白。
-        if (shift === '白班') {
+        // 先帶入白班起點，有上一筆結算時間時再覆蓋開始時間。
+        if (!continuingBatch && shift === '白班') {
             startTimeEl.value = '08:00';
-            document.getElementById('endTime').value = '17:00';
             setWorkingHours('540');
         }
 
@@ -1938,6 +1960,7 @@ function fetchLastRecord() {
             if (
                 data.part &&
                 allParts.includes(data.part) &&
+                !continuingBatch &&
                 !selectedPart &&
                 !isUserTypingPart
             ) {
@@ -1953,14 +1976,16 @@ function fetchLastRecord() {
 
             // 有上一筆時，上一筆結算時間優先於白班預設 08:00
             if (data.endTime) {
-                startTimeEl.value = data.endTime;
                 lastRecordEndTime = data.endTime;
+                if (!continuingBatch || !startTimeEl.value) startTimeEl.value = data.endTime;
 
                 // 中班只帶「上一筆結算時間」作為本筆開始時間；
                 // 本筆結算時間必須由員工填寫。
-                if (shift === '中班') {
+                if (!continuingBatch && shift === '中班') {
                     document.getElementById('endTime').value = '';
-                    setWorkingHours('510');
+                    if (data.recordShift === shift && [510, 630].includes(Number(data.workingHours))) {
+                        setWorkingHours(String(data.workingHours));
+                    }
                 }
             }
 
@@ -1970,6 +1995,7 @@ function fetchLastRecord() {
             // -------------------------------------------------
 
             if (
+                !continuingBatch &&
                 data.unitSeconds !== undefined &&
                 data.unitSeconds !== null &&
                 data.unitSeconds !== ""
@@ -2006,7 +2032,7 @@ function fetchLastRecord() {
             }, 4000);
 
 
-        } else {
+        } else if (!continuingBatch) {
 
             // =================================================
             // 找不到上一筆資料
@@ -2015,11 +2041,10 @@ function fetchLastRecord() {
             lastRecordEndTime = null;
             hintEl.style.display = 'none';
 
-            // 白班沒有上一筆時，維持標準 08:00～17:00。
+            // 白班沒有上一筆時，帶入班別起點。
             // 中班不強制帶入固定時間。
             if (shift === '白班') {
                 document.getElementById('startTime').value = '08:00';
-                document.getElementById('endTime').value = '17:00';
                 setWorkingHours('540');
             } else if (shift === '中班') {
                 document.getElementById('startTime').value = '';
@@ -2046,9 +2071,8 @@ function fetchLastRecord() {
         );
 
         // 查詢失敗時也不要把白班第二筆留成空白。
-        if (shift === '白班') {
+        if (!continuingBatch && shift === '白班') {
             document.getElementById('startTime').value = '08:00';
-            document.getElementById('endTime').value = '17:00';
             setWorkingHours('540');
         }
     }).finally(() => {
@@ -2597,7 +2621,7 @@ function fetchLastRecord() {
     function generateRequestId() {
         const timestamp = Date.now();
         const random = Math.random().toString(36).substring(2, 10);
-        return 'wt3-' + timestamp + '-' + random;
+        return 'wt4-' + timestamp + '-' + random;
     }
 
 
@@ -2750,11 +2774,6 @@ function fetchLastRecord() {
 
         const workingHours = Number(document.getElementById('workingHours').value);
 
-        if (totalInvalidMinutes > workingHours) {
-            alert(`❌ 無效工時合計不可超過應有工時！\n\n應有工時：${workingHours} 分鐘\n無效工時：${totalInvalidMinutes} 分鐘`);
-            return;
-        }
-
         if (qty > 0 && !endTime) {
             alert("❌ 當您填寫了本次完成數量時，結算時間為必填欄位！");
             document.getElementById('endTime').focus();
@@ -2878,11 +2897,8 @@ function fetchLastRecord() {
         if (invalidItems.length > 0) {
             html += `<br><b>【無效工時明細】</b><br>`;
             invalidItems.forEach(item => {
-                html += `<div class="worktime-attribution">• ${item.type}：${item.min} 分鐘
-                    <label>區間內 <input type="number" min="0" step="1" size="4"></label>
-                    <label>區間外 <input type="number" min="0" step="1" size="4"></label></div>`;
+                html += '&nbsp;&nbsp;• ' + item.type + '：' + item.min + ' 分鐘<br>';
             });
-            html += '<p>請分別填寫區間內、區間外分鐘（沒有請填 0）。略過時會標為待確認。</p>';
         }
 
         if (data.remark) {
@@ -2890,7 +2906,8 @@ function fetchLastRecord() {
         }
 
         document.getElementById('summaryText').innerHTML = html;
-        document.getElementById('skipWorktimeAttribution').hidden = invalidItems.length === 0;
+        document.getElementById('closeShiftReport').checked = false;
+        updateWorktimeConfirmation();
         document.getElementById('confirmModal').style.display = 'flex';
     }
 
@@ -2903,30 +2920,28 @@ function fetchLastRecord() {
     // 實際發送資料至 GAS (從對話框點擊確認後執行)
     // =========================================================
 
-    function executeSubmit(skipAttribution = false) {
-        const items = pendingFormData.invalidItems;
-        const attribution = {};
-        let outside = 0;
-        if (!skipAttribution) document.querySelectorAll('#summaryText .worktime-attribution').forEach((line, i) => {
-            const [insideInput, outsideInput] = line.querySelectorAll('input');
-            const inside = insideInput.valueAsNumber;
-            const out = outsideInput.valueAsNumber;
-            if (Number.isInteger(inside) && Number.isInteger(out) && inside >= 0 && out >= 0 &&
-                inside + out === items[i].min) {
-                attribution[items[i].type] = { inside, outside: out };
-                outside += out;
-            }
-        });
-        const mid = pendingFormData.shift === '中班';
-        const start = parseMinutes(lastRecordEndTime || pendingFormData.startTime, mid);
-        const end = pendingFormData.endTime ? parseMinutes(pendingFormData.endTime, mid) : start;
-        const shiftEnd = (mid ? 1020 : 480) + pendingFormData.workingHours;
-        const difference = shiftEnd - start - (end - parseMinutes(pendingFormData.startTime, mid)) - outside;
-        const pending = Object.keys(attribution).length !== items.length || !pendingFormData.endTime;
-        if (!skipAttribution && (difference || pending) && !confirm(
-            `暫估本筆至班末工時差額 ${difference} 分鐘。${pending ? ' 無效工時歸屬或結算時間待確認。' : ''}\n確定略過並送出？按取消可補填。`
-        )) return;
-        pendingFormData.worktimeAttribution = attribution;
+    function updateWorktimeConfirmation() {
+        const data = pendingFormData;
+        const coverage = getShiftCoverage(data.startTime, data.endTime, data.shift, data.workingHours);
+        const close = document.getElementById('closeShiftReport').checked;
+        const ended = coverage && shiftReportDate &&
+            Date.now() >= Date.parse(shiftReportDate + 'T00:00:00+08:00') + coverage.end * 60000;
+        const incomplete = coverage && coverage.remaining > 0 && (close || ended);
+        const mid = data.shift === '中班';
+        const duration = data.endTime ? parseMinutes(data.endTime, mid) - parseMinutes(data.startTime, mid) : 0;
+        const losses = data.invalidItems.reduce((sum, item) => sum + item.min, 0);
+        const conflict = losses > duration || losses > data.workingHours;
+        const warnings = [];
+        if (incomplete) warnings.push('本班工時尚有 ' + coverage.remaining + ' 分鐘待交代，請確認設備後續作業狀況。');
+        if (close && !coverage) warnings.push('目前無法核對本班工時涵蓋進度，仍可送出。');
+        if (conflict) warnings.push('無效工時超過本筆 F/G 涵蓋時間，請確認開始／結束時間是否包含架機、停機等作業。暫算有效工時 ' + (duration - losses) + ' 分鐘。');
+        document.getElementById('shiftCoverageWarning').textContent = warnings.join(' ');
+        document.getElementById('continueShiftReport').hidden = !incomplete;
+        document.getElementById('sendShiftReport').textContent = incomplete ? '仍要送出' : conflict ? '確認後送出' : '送出';
+    }
+
+    function executeSubmit(continueShift = false) {
+        pendingFormData.closeShift = !continueShift && document.getElementById('closeShiftReport').checked;
         closeConfirmModal();
 
         document.getElementById('requestIdDisplay').textContent = currentRequestId;
@@ -2973,7 +2988,7 @@ function fetchLastRecord() {
             // 先保存本次成功資料，因為 resetFormAfterSubmit() 會清空欄位
             const submittedData = { ...(pendingFormData || {}) };
 
-            resetFormAfterSubmit();
+            resetFormAfterSubmit(submittedData);
             showSuccessBanner(submittedData);
         })
         .catch(err => {
@@ -3030,22 +3045,25 @@ function fetchLastRecord() {
     // 送出成功後重設表單 (回到機台欄位)
     // =========================================================
 
-    function resetFormAfterSubmit() {
+    function resetFormAfterSubmit(submittedData) {
         document.getElementById('qty').value = '';
         document.getElementById('unitSeconds').value = '';
         document.getElementById('startTime').value = '';
         document.getElementById('endTime').value = '';
         document.getElementById('remark').value = '';
 
-        machineInput.value = '';
+        machineInput.value = submittedData.machine;
         partInput.value = '';
-        selectedMachine = '';
+        selectedMachine = submittedData.machine;
         selectedPart = '';
         isUserTypingPart = false;
         batchLookupRequestSeq++;
         lastRecordRequestSeq++; // 使上一筆機台尚未完成的查詢立即失效，避免舊回應覆蓋下一筆
+        midBatchLookupSeq++;
+        midBatchCandidate = null;
+        midBatchCandidateKey = '';
         resetBatchLink();
-        lastRecordEndTime = null;
+        lastRecordEndTime = submittedData.endTime || null;
         currentRequestId = null;
 
         // 保留目前班別，方便連續回報下一台機台
@@ -3054,7 +3072,8 @@ function fetchLastRecord() {
         // 班別已選定，因此下一筆不重新鎖住輸入欄位
         if (currentShift) {
             unlockFormFields();
-            handleShiftChange();
+            setWorkingHours(String(submittedData.workingHours));
+            document.getElementById('startTime').value = lastRecordEndTime || '';
 
             // 白班下一台先恢復標準預設值；選機台後若有上一筆，
             // fetchLastRecord() 會再用上一筆結算時間覆蓋開始時間。
@@ -3076,8 +3095,8 @@ function fetchLastRecord() {
                 <div class="form-group" style="margin-bottom: 8px;">
                     <select class="invalidType" disabled>
                         <option value="">無</option>
-                        <option value="架機">架機</option>
                         <option value="調機">調機</option>
+                        <option value="架機">架機</option>
                         <option value="換刀">換刀</option>
                         <option value="待料">待料</option>
                         <option value="換批">換批</option>
@@ -3110,8 +3129,8 @@ function fetchLastRecord() {
                 <div class="form-group" style="margin-bottom: 8px;">
                     <select class="invalidType" disabled>
                         <option value="">無</option>
-                        <option value="架機">架機</option>
                         <option value="調機">調機</option>
+                        <option value="架機">架機</option>
                         <option value="換刀">換刀</option>
                         <option value="待料">待料</option>
                         <option value="換批">換批</option>
@@ -3141,8 +3160,9 @@ function fetchLastRecord() {
             unlockFormFields();
         }
 
-        machineInput.focus();
-        machineInput.scrollIntoView({
+        fetchLastRecord(true);
+        partInput.focus();
+        partInput.scrollIntoView({
             behavior: 'smooth',
             block: 'center'
         });
