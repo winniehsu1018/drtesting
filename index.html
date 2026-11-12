@@ -409,18 +409,40 @@
         .report-tabs { display:flex; gap:8px; margin-bottom:20px; }
         .report-tabs button { flex:1; width:auto; padding:12px 8px; font-size:16px; border:1px solid #007bff; border-radius:5px; }
         .report-tabs button[aria-selected="false"] { background:white; color:#0056b3; }
-        .container.equipment-query-open { max-width:1600px; }
-        .equipment-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:end; margin-bottom:16px; }
-        .equipment-filters label { flex:1 1 130px; }
-        .equipment-filters input, .equipment-filters select { box-sizing:border-box; width:100%; margin-top:6px; }
-        .equipment-filters button { width:auto; padding:12px 18px; }
-        #equipmentStatusResult { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+        .container.equipment-query-open { max-width:1600px; width:100%; min-width:0; box-sizing:border-box; }
+        #equipmentQueryPanel { min-width:0; }
+        .equipment-reminder { margin:0 0 14px; padding:6px 10px; border-left:3px solid #7c9db8; font-size:14px; line-height:1.55; color:#43525e; }
+        .equipment-reminder p { margin:4px 0; }
+        .equipment-filters { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px 12px; align-items:end; margin-bottom:12px; }
+        .equipment-filters label { min-width:0; margin:0; }
+        .equipment-filters input:not([type="radio"]), .equipment-filters select { display:block; box-sizing:border-box; width:100%; min-width:0; max-width:100%; height:44px; margin-top:5px; font-size:16px; }
+        .equipment-filters input[type="date"] { appearance:none; -webkit-appearance:none; line-height:normal; }
+        .equipment-filters input[type="date"]::-webkit-date-and-time-value { text-align:left; }
+        .equipment-filters button { width:auto; height:44px; padding:10px 18px; margin:0; }
+        .equipment-range { grid-column:1/-1; min-width:0; margin:0; padding:0; border:0; }
+        .equipment-range legend { padding:0; margin-bottom:5px; color:#555; font-weight:bold; }
+        .equipment-range-options { display:flex; flex-wrap:wrap; gap:8px; }
+        .equipment-range-options label { display:flex; align-items:center; gap:6px; padding:8px 12px; border:1px solid #ccd5dd; border-radius:5px; font-weight:normal; cursor:pointer; }
+        .equipment-range-options label:has(input:checked) { border-color:#007bff; background:#edf5ff; color:#0056b3; }
+        .equipment-range-options input { width:18px; height:18px; padding:0; margin:0; }
+        #equipmentStatusResult { width:100%; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
         .equipment-status-table { width:100%; min-width:1500px; table-layout:fixed; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
         .equipment-status-table th, .equipment-status-table td { padding:10px 8px; text-align:center; vertical-align:middle; border-bottom:1px solid #d5dce1; white-space:nowrap; box-sizing:border-box; }
         .equipment-status-table tbody tr { height:52px; }
         .equipment-status-table td:nth-child(3) { text-align:left; padding-left:12px; }
         .equipment-status-table td:last-child { text-align:left; white-space:normal; overflow-wrap:anywhere; }
         .equipment-status-table td:last-child p { margin:4px 0; }
+        @media (max-width:600px) {
+            .container.equipment-query-open { padding:14px; }
+            #equipmentQueryPanel h2 { font-size:21px; margin:12px 0; }
+            .equipment-filters { grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px 8px; }
+            #equipmentDateLabel, #equipmentQueryButton { grid-column:1/-1; }
+            .equipment-range-options label { flex:1; justify-content:center; padding:8px 4px; font-size:14px; }
+            .equipment-reminder { margin-bottom:12px; padding:4px 8px; }
+        }
+        @media (max-width:360px) {
+            .equipment-filters { grid-template-columns:minmax(0,1fr); }
+        }
     </style>
 </head>
 
@@ -773,10 +795,20 @@
         </div>
         <section id="equipmentQueryPanel" role="tabpanel" aria-labelledby="equipmentTab" hidden>
             <h2>機台工時回報狀態</h2>
-            <p>僅查詢台北時間當月資料。已回報工時為開始至結算時間的聯集，未回報工時＝應有工時－已回報工時；無效工時另列，不重複相加。未記錄工時歸屬的資料仍顯示待確認。</p>
+            <aside class="equipment-reminder" aria-label="工時回報提醒">
+                <strong>工時回報提醒</strong>
+                <p>機台當班只要有開機作業，回報時間原則上應涵蓋該班別從上班到下班的完整時段，包含加工、架機、調機及停機等時間。</p>
+                <p>請確實填寫各項無效工時，避免因漏報而造成生產效率偏低。</p>
+            </aside>
             <form id="equipmentQueryForm" class="equipment-filters">
-                <label>查詢範圍<select id="equipmentRange"><option value="day">指定日期</option><option value="month">當月全部日期</option></select></label>
-                <label>日期<input type="date" id="equipmentDate" required></label>
+                <fieldset id="equipmentRange" class="equipment-range">
+                    <legend>查詢範圍</legend>
+                    <div class="equipment-range-options">
+                        <label><input type="radio" name="equipmentRange" value="day" checked>指定日期</label>
+                        <label><input type="radio" name="equipmentRange" value="month">當月全部</label>
+                    </div>
+                </fieldset>
+                <label id="equipmentDateLabel">日期<input type="date" id="equipmentDate" required></label>
                 <label>班別<select id="equipmentShift"><option>白班</option><option>中班</option></select></label>
                 <label id="equipmentHoursLabel" hidden>應有工時<select id="equipmentHours"><option value="510">510 分鐘</option><option value="630">630 分鐘</option></select></label>
                 <label>機台<input id="equipmentMachine" list="equipmentMachines" placeholder="留白查詢全部"><datalist id="equipmentMachines"></datalist></label>
@@ -3156,6 +3188,6 @@ function fetchLastRecord() {
 
 </script>
 
-<script src="equipment-status.js?v=2"></script>
+<script src="equipment-status.js?v=3"></script>
 </body>
 </html>

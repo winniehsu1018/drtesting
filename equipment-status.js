@@ -30,7 +30,8 @@ function updateEquipmentMonth() {
     input.min = month + '-01';
     input.max = new Date(Date.UTC(Number(parts.year),Number(parts.month),0)).toISOString().slice(0,10);
     if (!input.value || input.value.slice(0,7) !== month) input.value = today;
-    input.disabled = document.getElementById('equipmentRange').value === 'month';
+    input.disabled = document.querySelector('#equipmentRange input:checked').value === 'month';
+    document.getElementById('equipmentDateLabel').hidden = input.disabled;
 }
 
 function updateEquipmentShift() {
@@ -46,7 +47,7 @@ async function loadEquipmentStatus(event) {
     try {
         updateEquipmentMonth();
         const shift = document.getElementById('equipmentShift').value;
-        const range = document.getElementById('equipmentRange').value;
+        const range = document.querySelector('#equipmentRange input:checked').value;
         const params = new URLSearchParams({action:'getEquipmentWorktimeStatus', loginToken:lightLoginToken,
             range, date:range === 'month' ? '' : document.getElementById('equipmentDate').value, shift,
             workingHours:shift === '白班' ? '540' : document.getElementById('equipmentHours').value,
