@@ -404,6 +404,21 @@
         .light-login-btn:hover { background:#0056b3; }
         .light-login-btn:disabled { background:#cccccc; cursor:not-allowed; }
 
+
+        [hidden] { display: none !important; }
+        .report-tabs { display:flex; gap:8px; margin-bottom:20px; }
+        .report-tabs button { flex:1; width:auto; padding:12px 8px; font-size:16px; border:1px solid #007bff; border-radius:5px; }
+        .report-tabs button[aria-selected="false"] { background:white; color:#0056b3; }
+        .container.equipment-query-open { max-width:1100px; }
+        .equipment-filters { display:flex; flex-wrap:wrap; gap:12px; align-items:end; margin-bottom:16px; }
+        .equipment-filters label { flex:1 1 130px; }
+        .equipment-filters input, .equipment-filters select { box-sizing:border-box; width:100%; margin-top:6px; }
+        .equipment-filters button { width:auto; padding:12px 18px; }
+        #equipmentStatusResult { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+        .equipment-status-table { width:100%; min-width:960px; table-layout:fixed; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
+        .equipment-status-table th, .equipment-status-table td { padding:10px 8px; text-align:center; vertical-align:middle; border-bottom:1px solid #d5dce1; white-space:nowrap; box-sizing:border-box; }
+        .equipment-status-table tbody tr { height:52px; }
+        .equipment-status-table td:nth-child(3) { text-align:left; padding-left:12px; }
     </style>
 </head>
 
@@ -426,6 +441,11 @@
 
     <!-- 原始表單畫面 (預設隱藏，通過驗證後顯示) -->
     <div id="mainFormView" style="display: none;">
+        <nav class="report-tabs" role="tablist" aria-label="日報功能">
+            <button type="button" id="reportTab" role="tab" aria-controls="reportTabPanel" aria-selected="true">生產日報填寫</button>
+            <button type="button" id="equipmentTab" role="tab" aria-controls="equipmentQueryPanel" aria-selected="false" tabindex="-1">機台工時查詢</button>
+        </nav>
+        <div id="reportTabPanel" role="tabpanel" aria-labelledby="reportTab">
         <h2>CNC 生產日報回報</h2>
 
         <div id="successBanner" role="status" aria-live="polite"></div>
@@ -748,6 +768,19 @@
             <button type="button" class="admin-btn" id="adminAuthCacheBtn" onclick="runAdminAction('adminClearAuthCache')">🔐 更新權限快取</button>
             <div id="adminStatus"></div>
         </div>
+        </div>
+        <section id="equipmentQueryPanel" role="tabpanel" aria-labelledby="equipmentTab" hidden>
+            <h2>機台工時回報狀態</h2>
+            <p>僅供查詢。未記錄工時歸屬的日報不推定加工區間內／外，顯示待確認；加工區間外僅有分鐘數時，仍需確認是否重疊。</p>
+            <form id="equipmentQueryForm" class="equipment-filters">
+                <label>日期（MMDD）<input id="equipmentDate" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required placeholder="1112"></label>
+                <label>班別<select id="equipmentShift"><option>白班</option><option>中班</option></select></label>
+                <label id="equipmentHoursLabel" hidden>應有工時<select id="equipmentHours"><option value="510">510 分鐘</option><option value="630">630 分鐘</option></select></label>
+                <label>機台<input id="equipmentMachine" list="equipmentMachines" placeholder="留白查詢全部"><datalist id="equipmentMachines"></datalist></label>
+                <button type="submit" id="equipmentQueryButton">查詢</button>
+            </form>
+            <div id="equipmentStatusResult" aria-live="polite"></div>
+        </section>
     </div>
 
 </div>
@@ -3120,5 +3153,6 @@ function fetchLastRecord() {
 
 </script>
 
+<script src="equipment-status.js?v=1"></script>
 </body>
 </html>
