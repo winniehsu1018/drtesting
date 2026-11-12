@@ -425,6 +425,13 @@
         .equipment-range-options label { display:flex; align-items:center; gap:6px; padding:8px 12px; border:1px solid #ccd5dd; border-radius:5px; font-weight:normal; cursor:pointer; }
         .equipment-range-options label:has(input:checked) { border-color:#007bff; background:#edf5ff; color:#0056b3; }
         .equipment-range-options input { width:18px; height:18px; padding:0; margin:0; }
+        .equipment-machine-picker { position:relative; min-width:0; }
+        .equipment-machine-input { display:flex; align-items:end; gap:4px; }
+        .equipment-filters .equipment-machine-clear { flex:0 0 36px; width:36px; padding:0; margin-top:5px; }
+        .equipment-machine-options { position:absolute; top:100%; left:0; right:0; z-index:1000; max-height:240px; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; background:white; border:1px solid #ccd5dd; border-radius:5px; box-shadow:0 4px 12px #0002; }
+        .equipment-filters .equipment-machine-option { display:block; width:100%; height:auto; min-height:44px; margin:0; padding:10px 12px; text-align:left; background:white; color:#333; border:0; border-bottom:1px solid #edf0f2; border-radius:0; touch-action:pan-y; }
+        .equipment-filters .equipment-machine-option:hover, .equipment-filters .equipment-machine-option[aria-selected="true"] { background:#edf5ff; color:#0056b3; }
+        .equipment-machine-options p { padding:8px 12px; margin:0; font-size:14px; color:#666; }
         #equipmentStatusResult { width:100%; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
         .equipment-status-table { width:1390px; min-width:1390px; table-layout:fixed; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
         .equipment-status-table th, .equipment-status-table td { padding:10px 8px; text-align:center; vertical-align:middle; border-bottom:1px solid #d5dce1; white-space:nowrap; box-sizing:border-box; }
@@ -815,7 +822,14 @@
                 <label id="equipmentDateLabel">日期<input type="date" id="equipmentDate" required></label>
                 <label>班別<select id="equipmentShift"><option>白班</option><option>中班</option></select></label>
                 <label id="equipmentHoursLabel" hidden>應有工時<select id="equipmentHours"><option value="510">510 分鐘</option><option value="630">630 分鐘</option></select></label>
-                <label>機台<input id="equipmentMachine" list="equipmentMachines" placeholder="留白查詢全部"><datalist id="equipmentMachines"></datalist></label>
+                <div id="equipmentMachinePicker" class="equipment-machine-picker">
+                    <label for="equipmentMachine">機台</label>
+                    <div class="equipment-machine-input">
+                        <input id="equipmentMachine" role="combobox" aria-autocomplete="list" aria-controls="equipmentMachineOptions" aria-expanded="false" autocomplete="off" placeholder="全部機台">
+                        <button type="button" id="equipmentMachineClear" class="equipment-machine-clear" aria-label="清除機台搜尋">×</button>
+                    </div>
+                    <div id="equipmentMachineOptions" class="equipment-machine-options" role="listbox" aria-label="機台搜尋結果" hidden></div>
+                </div>
                 <button type="submit" id="equipmentQueryButton">查詢</button>
             </form>
             <div id="equipmentStatusResult" aria-live="polite"></div>
@@ -3192,6 +3206,6 @@ function fetchLastRecord() {
 
 </script>
 
-<script src="equipment-status.js?v=4"></script>
+<script src="equipment-status.js?v=5"></script>
 </body>
 </html>

@@ -13,13 +13,67 @@ function showEquipmentTab(query) {
     }
     if (query) {
         updateEquipmentMonth();
-        const list = document.getElementById('equipmentMachines');
-        list.replaceChildren();
-        allMachines.forEach(machine => {
-            const option = document.createElement('option'); option.value = machine; list.appendChild(option);
-        });
+        closeEquipmentMachines();
         alignEquipmentRows();
     }
+}
+
+function equipmentMachineKey(value) {
+    return String(value).toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+function compareEquipmentMachines(a, b) {
+    const bottom = ['ARC0501','PCLA20001','RT11','RT12','RT22','SL13YB25N'];
+    const rank = value => {
+        const key = equipmentMachineKey(value), index = bottom.indexOf(key);
+        return index >= 0 ? 3 + index : key.startsWith('YCL32') ? 0 : key.startsWith('YCL20') ? 1 : 2;
+    };
+    return rank(a) - rank(b) || equipmentMachineKey(a).localeCompare(equipmentMachineKey(b), 'en', {numeric:true});
+}
+
+function closeEquipmentMachines() {
+    document.getElementById('equipmentMachineOptions').hidden = true;
+    const input = document.getElementById('equipmentMachine');
+    input.setAttribute('aria-expanded','false');
+    input.removeAttribute('aria-activedescendant');
+}
+
+function chooseEquipmentMachine(machine) {
+    document.getElementById('equipmentMachine').value = machine;
+    closeEquipmentMachines();
+}
+
+let equipmentMachineOptionIndex = -1;
+function renderEquipmentMachines() {
+    const input = document.getElementById('equipmentMachine');
+    const list = document.getElementById('equipmentMachineOptions');
+    const query = equipmentMachineKey(input.value.trim());
+    const machines = [...allMachines].sort(compareEquipmentMachines).filter(machine => equipmentMachineKey(machine).includes(query));
+    list.replaceChildren();
+    equipmentMachineOptionIndex = -1;
+    ['', ...machines].forEach((machine,index) => {
+        const option = document.createElement('button');
+        option.type = 'button'; option.className = 'equipment-machine-option';
+        option.id = 'equipmentMachineOption-' + index;
+        option.setAttribute('role','option'); option.setAttribute('aria-selected','false'); option.tabIndex = -1;
+        option.textContent = machine || '全部機台';
+        option.addEventListener('click', () => chooseEquipmentMachine(machine));
+        list.appendChild(option);
+    });
+    if (!machines.length) {
+        const message = document.createElement('p'); message.textContent = '沒有符合的機台'; list.appendChild(message);
+    }
+    list.hidden = false;
+    input.setAttribute('aria-expanded','true'); input.removeAttribute('aria-activedescendant');
+}
+
+function equipmentMachineFilter() {
+    const value = document.getElementById('equipmentMachine').value.trim();
+    if (!value) return '';
+    const machine = allMachines.find(machine => equipmentMachineKey(machine) === equipmentMachineKey(value));
+    if (machine) return machine;
+    renderEquipmentMachines();
+    throw new Error('請從搜尋結果選擇機台，或選擇全部機台。');
 }
 
 function alignEquipmentRows() {
@@ -59,7 +113,7 @@ async function loadEquipmentStatus(event) {
         const params = new URLSearchParams({action:'getEquipmentWorktimeStatus', loginToken:lightLoginToken,
             range, date:range === 'month' ? '' : document.getElementById('equipmentDate').value, shift,
             workingHours:shift === '白班' ? '540' : document.getElementById('equipmentHours').value,
-            machine:document.getElementById('equipmentMachine').value.trim()});
+            machine:equipmentMachineFilter()});
         const result = await (await fetch(GAS_WEB_APP_URL + '?' + params)).json();
         if (!result.success) throw new Error(result.needLogin ? '登入已失效，請重新登入。' : result.error || result.message || '無法取得狀態。');
         output.replaceChildren();
@@ -75,7 +129,9 @@ async function loadEquipmentStatus(event) {
             const th = document.createElement('th'); th.textContent = text; th.scope = 'col'; header.appendChild(th);
         });
         const body = table.createTBody();
-        result.machines.forEach(machine => {
+        [...result.machines].sort((a,b) => a.date.localeCompare(b.date) ||
+            (['白班','中班'].indexOf(a.shift) - ['白班','中班'].indexOf(b.shift)) ||
+            compareEquipmentMachines(a.machine,b.machine)).forEach(machine => {
             const row = body.insertRow();
             const hasReports = machine.notes.length > 0;
             [machine.date,machine.shift,machine.machine,hasReports ? machine.hours : 0,hasReports ? machine.reported : 0,hasReports ? machine.unreported : 0,
@@ -102,6 +158,34 @@ document.getElementById('equipmentTab').addEventListener('click', () => showEqui
 document.getElementById('equipmentShift').addEventListener('change', updateEquipmentShift);
 document.getElementById('equipmentRange').addEventListener('change', updateEquipmentMonth);
 document.getElementById('equipmentQueryForm').addEventListener('submit', loadEquipmentStatus);
+document.getElementById('equipmentMachine').addEventListener('focus', renderEquipmentMachines);
+document.getElementById('equipmentMachine').addEventListener('click', renderEquipmentMachines);
+document.getElementById('equipmentMachine').addEventListener('input', renderEquipmentMachines);
+document.getElementById('equipmentMachineClear').addEventListener('click', () => {
+    document.getElementById('equipmentMachine').value = '';
+    document.getElementById('equipmentMachine').focus();
+    renderEquipmentMachines();
+});
+document.addEventListener('pointerdown', event => {
+    if (!document.getElementById('equipmentMachinePicker').contains(event.target)) closeEquipmentMachines();
+});
+document.getElementById('equipmentMachine').addEventListener('keydown', event => {
+    const list = document.getElementById('equipmentMachineOptions');
+    if (event.key === 'Escape') { event.preventDefault(); closeEquipmentMachines(); return; }
+    if (['ArrowDown','ArrowUp'].includes(event.key)) {
+        event.preventDefault();
+        if (list.hidden) renderEquipmentMachines();
+        const options = [...list.querySelectorAll('button')];
+        equipmentMachineOptionIndex = (equipmentMachineOptionIndex + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+        options.forEach((option,index) => option.setAttribute('aria-selected',String(index === equipmentMachineOptionIndex)));
+        const option = options[equipmentMachineOptionIndex];
+        event.target.setAttribute('aria-activedescendant',option.id); option.scrollIntoView({block:'nearest'});
+    } else if (event.key === 'Enter' && !list.hidden) {
+        event.preventDefault();
+        const option = list.querySelectorAll('button')[equipmentMachineOptionIndex];
+        if (option) option.click();
+    }
+});
 document.querySelector('[role="tablist"]').addEventListener('keydown', event => {
     if (!['ArrowLeft','ArrowRight'].includes(event.key)) return;
     event.preventDefault();
