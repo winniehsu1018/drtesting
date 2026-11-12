@@ -149,21 +149,6 @@
             margin-top: 10px;
         }
 
-        .shift-time-guidance {
-            margin: 0 0 16px;
-            padding: 10px 12px;
-            border-left: 3px solid #3975a9;
-            border-radius: 4px;
-            background: #eef6ff;
-            color: #233a50;
-            font-size: 14px;
-            line-height: 1.6;
-            overflow-wrap: anywhere;
-        }
-
-        .shift-time-guidance p { margin: 0; }
-        .shift-time-guidance p + p { margin-top: 6px; }
-
         .time-hint {
             font-size: 12px;
             color: #888;
@@ -419,21 +404,6 @@
         .light-login-btn:hover { background:#0056b3; }
         .light-login-btn:disabled { background:#cccccc; cursor:not-allowed; }
 
-
-        .equipment-status-table {
-            width: 100%; min-width: 960px; table-layout: fixed;
-            border-collapse: collapse; font-size: 13px;
-            font-variant-numeric: tabular-nums;
-        }
-        .equipment-status-table th, .equipment-status-table td {
-            padding: 10px 8px; text-align: center; vertical-align: middle;
-            border-bottom: 1px solid #d5dce1; box-sizing: border-box;
-            white-space: nowrap;
-        }
-        .equipment-status-table tbody tr { height: 52px; }
-        .equipment-status-table td:nth-child(3) { text-align: left; padding-left: 12px; }
-        .equipment-status-table th { line-height: 1.5; }
-        #equipmentStatusResult { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     </style>
 </head>
 
@@ -559,7 +529,9 @@
 
             <!-- 開始時間 -->
             <div class="form-group">
-                <label for="startTime">開始時間</label>
+                <label for="startTime">
+                    開始時間 (若有上一筆將自動帶入結算時間)：
+                </label>
                 <input
                     type="text"
                     id="startTime"
@@ -578,7 +550,9 @@
 
             <!-- 結算時間 -->
             <div class="form-group">
-                <label for="endTime">結算時間</label>
+                <label for="endTime">
+                    結算時間 (有填數量或無效工時則必填)：
+                </label>
                 <input
                     type="text"
                     id="endTime"
@@ -592,11 +566,6 @@
                 <div class="time-hint">
                     💡 輸入 4 位數字（如 1700，離開時自動轉為 17:00）
                 </div>
-            </div>
-
-            <div class="shift-time-guidance">
-                <p>該班別如有開機作業，開始至結算時間應涵蓋該班別的工作時間，包含加工、架機、調機及停機，不可只填實際加工時間。</p>
-                <p>同一設備如有多筆生產紀錄，請依換批時間接續填寫，避免時間重疊。尚未發生的工時不得提前回報。</p>
             </div>
 
             <!-- 應有工時 -->
@@ -665,13 +634,15 @@
                         <span>項目 1</span>
                     </div>
                     <div class="form-group" style="margin-bottom: 8px;">
-                        <select class="invalidType" disabled><option value="">無</option>
-                        <option value="調機">調機</option>
-                        <option value="架機">架機</option>
-                        <option value="換刀">換刀</option>
-                        <option value="待料">待料</option>
-                        <option value="換批">換批</option>
-                        <option value="其他">其他</option></select>
+                        <select class="invalidType" disabled>
+                            <option value="">無</option>
+                            <option value="架機">架機</option>
+                            <option value="調機">調機</option>
+                            <option value="換刀">換刀</option>
+                            <option value="待料">待料</option>
+                            <option value="換批">換批</option>
+                            <option value="其他">其他</option>
+                        </select>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <input
@@ -697,13 +668,15 @@
                         </button>
                     </div>
                     <div class="form-group" style="margin-bottom: 8px;">
-                        <select class="invalidType" disabled><option value="">無</option>
-                        <option value="調機">調機</option>
-                        <option value="架機">架機</option>
-                        <option value="換刀">換刀</option>
-                        <option value="待料">待料</option>
-                        <option value="換批">換批</option>
-                        <option value="其他">其他</option></select>
+                        <select class="invalidType" disabled>
+                            <option value="">無</option>
+                            <option value="架機">架機</option>
+                            <option value="調機">調機</option>
+                            <option value="換刀">換刀</option>
+                            <option value="待料">待料</option>
+                            <option value="換批">換批</option>
+                            <option value="其他">其他</option>
+                        </select>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <input
@@ -784,18 +757,14 @@
     <div class="modal-content">
         <h3>📋 請確認回報資料</h3>
         <div id="summaryText" class="summary-list"></div>
-        <label><input id="closeShiftReport" type="checkbox" onchange="updateWorktimeConfirmation()"> 結束本班回報</label>
-        <p id="shiftCoverageWarning" aria-live="polite"></p>
         <div class="modal-buttons">
-            <button type="button" class="modal-btn btn-cancel" onclick="closeConfirmModal()">補充無效工時／返回修改</button>
-            <button type="button" class="modal-btn btn-confirm" id="sendShiftReport" onclick="executeSubmit()">送出</button>
-            <button type="button" id="continueShiftReport" class="modal-btn btn-confirm" onclick="executeSubmit(true)" hidden>填寫下一筆</button>
+            <button type="button" class="modal-btn btn-cancel" onclick="closeConfirmModal()">返回修改</button>
+            <button type="button" class="modal-btn btn-confirm" onclick="executeSubmit()">確認無誤，送出</button>
         </div>
     </div>
 </div>
 
 
-<script src="worktime-details.js"></script>
 <script>
 
     // =========================================================
@@ -1154,34 +1123,15 @@ function checkUserPermission(userId, displayName) {
     // =========================================================
     let routineInspectionKey = '';
     let routineInspectionRecorded = false;
-    let shiftIntervals = null;
-    let shiftReportDate = null;
     let routineCleaningSummary = { baseMinutes: 0, allocatedMinutes: 0 };
 
     function routineContextKey() {
         return JSON.stringify(['date', 'shift', 'machine'].map(id => document.getElementById(id).value.trim()));
     }
 
-    function getShiftCoverage(start, end, shift, hours) {
-        if (routineInspectionKey !== routineContextKey() || !shiftIntervals || !hours) return null;
-        const mid = shift === '中班';
-        const first = mid ? 1020 : 480;
-        const last = first + hours;
-        const times = [...shiftIntervals, [start, end]].filter(pair => pair.every(Boolean))
-            .map(pair => pair.map(time => parseMinutes(time, mid))).sort((a, b) => a[0] - b[0]);
-        let covered = 0;
-        let boundary = first;
-        times.forEach(([from, to]) => {
-            if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return;
-            const end = Math.min(last, to);
-            covered += Math.max(0, end - Math.max(boundary, from));
-            boundary = Math.max(boundary, end);
-        });
-        return { covered, remaining: hours - covered, end: last };
-    }
+    const ROUTINE_CLEANING_EXCLUDED_MACHINES = new Set(['RT-11', 'RT-12', 'PCL-A20-001', 'ARC-05-01']);
 
     function updateRoutineMinutes() {
-        configureWorktimeInputs();
         const start = document.getElementById('startTime').value.trim();
         const end = document.getElementById('endTime').value.trim();
         const validTime = value => /^(?:[01]?\d|2[0-3]):[0-5]\d$/.test(value);
@@ -1191,28 +1141,20 @@ function checkUserPermission(userId, displayName) {
             ? parseMinutes(end, shift === '中班') - parseMinutes(start, shift === '中班') : 0;
         const active = duration > 0 && denominator > 0 && Number.isFinite(denominator);
         let otherInvalidMinutes = 0;
-        let insideInvalidMinutes = 0;
         document.querySelectorAll('.invalid-box').forEach(box => {
             const type = box.querySelector('.invalidType').value;
             const minutes = Number(box.querySelector('.invalidMin').value);
             if (['架機', '調機', '換刀', '待料', '換批', '其他'].includes(type) && Number.isFinite(minutes) && minutes > 0) {
                 otherInvalidMinutes += minutes;
-                try { insideInvalidMinutes += worktimeSplitForBox(box).inside; } catch (error) { /* 送出時驗證輸入 */ }
             }
         });
         const cleaningBase = Math.max(0, duration - otherInvalidMinutes);
         const previous = routineInspectionKey === routineContextKey()
             ? routineCleaningSummary : { baseMinutes: 0, allocatedMinutes: 0 };
-        const cleaningExempt = ['RT-11', 'RT-12', 'PCL-A20-001', 'ARC-05-01']
-            .includes(String(selectedMachine || machineInput.value).trim().toUpperCase());
-        const previousDurations = routineInspectionKey === routineContextKey() && shiftIntervals
-            ? shiftIntervals.map(([from, to]) => Math.max(0, parseMinutes(to, shift === '中班') - parseMinutes(from, shift === '中班'))) : [];
-        const totalDuration = duration + previousDurations.reduce((sum, minutes) => sum + minutes, 0);
-        const shiftEnd = (shift === '中班' ? 1020 : 480) + denominator;
-        const totalCleaning = end && parseMinutes(end, shift === '中班') === shiftEnd
-            ? 20 : Math.round(20 * Math.min((previous.baseMinutes + cleaningBase) / denominator, 1));
-        const cleaning = active && !cleaningExempt ? Math.max(0, totalCleaning -
-            previousDurations.reduce((sum, minutes) => sum + Math.floor(totalCleaning * minutes / totalDuration), 0)) : 0;
+        const machine = document.getElementById('machine').value.trim().toUpperCase();
+        const cleaning = active && !ROUTINE_CLEANING_EXCLUDED_MACHINES.has(machine) ? Math.max(0,
+            Math.round(20 * Math.min((previous.baseMinutes + cleaningBase) / denominator, 1))
+            - previous.allocatedMinutes) : 0;
         const alreadyInspected = routineInspectionKey === routineContextKey() && routineInspectionRecorded;
         const inspection = active && shift !== '中班' && !alreadyInspected ? 3 : 0;
         const hint = document.getElementById('effectiveMinutesHint');
@@ -1224,10 +1166,8 @@ function checkUserPermission(userId, displayName) {
                 if (type && type !== '無' && Number.isFinite(minutes) && minutes > 0) totalInvalid += minutes;
             });
             hint.textContent = active
-                ? `自動計算：清潔 ${cleaning} 分鐘、點檢 ${inspection} 分鐘｜開始至結算時間 區間 ${duration} 分鐘｜無效工時 ${totalInvalid} 分鐘｜暫算有效工時 ${duration - cleaning - inspection - insideInvalidMinutes} 分鐘`
-                : '填入完整開始與結算時間後，自動計算清潔與點檢。';
-            const coverage = getShiftCoverage(start, end, shift, denominator);
-            if (coverage) hint.textContent += '｜本班應有 ' + denominator + ' 分鐘，目前已涵蓋 ' + coverage.covered + ' 分鐘，尚待交代 ' + coverage.remaining + ' 分鐘。';
+                ? `自動計算：清潔 ${cleaning} 分鐘、點檢 ${inspection} 分鐘｜生產區間 ${duration} 分鐘｜無效工時 ${totalInvalid} 分鐘｜有效工時 ${duration - totalInvalid} 分鐘`
+                : '填入完整開始與結算時間後，自動計算清潔、點檢與有效工時。';
         }
         return { cleaning, inspection };
     }
@@ -1774,7 +1714,7 @@ function checkUserPermission(userId, displayName) {
             if (el) el.disabled = false;
         });
 
-        document.querySelectorAll('.invalidType, .invalidMin, .invalidInside, .invalidOutside, .btn-remove').forEach(el => {
+        document.querySelectorAll('.invalidType, .invalidMin, .btn-remove').forEach(el => {
             el.disabled = false;
         });
     }
@@ -1884,7 +1824,7 @@ function fetchOptions() {
     // =========================================================
     // 取得上一筆資料 (已完全移除應有工時帶入)
     // =========================================================
-function fetchLastRecord(continuingBatch = false) {
+function fetchLastRecord() {
 
     const date =
         document.getElementById('date').value.trim();
@@ -1911,8 +1851,6 @@ function fetchLastRecord(continuingBatch = false) {
         ++lastRecordRequestSeq;
     const routineRequestKey = routineContextKey();
     routineInspectionKey = '';
-    shiftIntervals = null;
-    shiftReportDate = null;
     routineInspectionRecorded = false;
     routineCleaningSummary = { baseMinutes: 0, allocatedMinutes: 0 };
     updateRoutineMinutes();
@@ -1954,8 +1892,6 @@ function fetchLastRecord(continuingBatch = false) {
 
 
         routineInspectionKey = routineRequestKey;
-        shiftIntervals = Array.isArray(data.shiftIntervals) ? data.shiftIntervals : null;
-        shiftReportDate = data.shiftDate || null;
         routineInspectionRecorded = data.inspectionRecorded === true;
         const summary = data.cleaningSummary;
         routineCleaningSummary = summary && Number.isFinite(summary.baseMinutes)
@@ -1969,9 +1905,12 @@ function fetchLastRecord(continuingBatch = false) {
         const startTimeEl =
             document.getElementById('startTime');
 
-        // 先帶入白班起點，有上一筆結算時間時再覆蓋開始時間。
-        if (!continuingBatch && shift === '白班') {
+        // 白班每次「上一筆查詢」完成後，都先確保標準時間存在。
+        // 後面若真的有上一筆 endTime，只覆蓋開始時間。
+        // 這可避免後端 success=true 但沒有 endTime 時，把第 5 筆之後留成空白。
+        if (shift === '白班') {
             startTimeEl.value = '08:00';
+            document.getElementById('endTime').value = '17:00';
             setWorkingHours('540');
         }
 
@@ -1996,7 +1935,6 @@ function fetchLastRecord(continuingBatch = false) {
             if (
                 data.part &&
                 allParts.includes(data.part) &&
-                !continuingBatch &&
                 !selectedPart &&
                 !isUserTypingPart
             ) {
@@ -2012,16 +1950,14 @@ function fetchLastRecord(continuingBatch = false) {
 
             // 有上一筆時，上一筆結算時間優先於白班預設 08:00
             if (data.endTime) {
+                startTimeEl.value = data.endTime;
                 lastRecordEndTime = data.endTime;
-                if (!continuingBatch || !startTimeEl.value) startTimeEl.value = data.endTime;
 
                 // 中班只帶「上一筆結算時間」作為本筆開始時間；
                 // 本筆結算時間必須由員工填寫。
-                if (!continuingBatch && shift === '中班') {
+                if (shift === '中班') {
                     document.getElementById('endTime').value = '';
-                    if (data.recordShift === shift && [510, 630].includes(Number(data.workingHours))) {
-                        setWorkingHours(String(data.workingHours));
-                    }
+                    setWorkingHours('510');
                 }
             }
 
@@ -2031,7 +1967,6 @@ function fetchLastRecord(continuingBatch = false) {
             // -------------------------------------------------
 
             if (
-                !continuingBatch &&
                 data.unitSeconds !== undefined &&
                 data.unitSeconds !== null &&
                 data.unitSeconds !== ""
@@ -2068,7 +2003,7 @@ function fetchLastRecord(continuingBatch = false) {
             }, 4000);
 
 
-        } else if (!continuingBatch) {
+        } else {
 
             // =================================================
             // 找不到上一筆資料
@@ -2077,10 +2012,11 @@ function fetchLastRecord(continuingBatch = false) {
             lastRecordEndTime = null;
             hintEl.style.display = 'none';
 
-            // 白班沒有上一筆時，帶入班別起點。
+            // 白班沒有上一筆時，維持標準 08:00～17:00。
             // 中班不強制帶入固定時間。
             if (shift === '白班') {
                 document.getElementById('startTime').value = '08:00';
+                document.getElementById('endTime').value = '17:00';
                 setWorkingHours('540');
             } else if (shift === '中班') {
                 document.getElementById('startTime').value = '';
@@ -2107,8 +2043,9 @@ function fetchLastRecord(continuingBatch = false) {
         );
 
         // 查詢失敗時也不要把白班第二筆留成空白。
-        if (!continuingBatch && shift === '白班') {
+        if (shift === '白班') {
             document.getElementById('startTime').value = '08:00';
+            document.getElementById('endTime').value = '17:00';
             setWorkingHours('540');
         }
     }).finally(() => {
@@ -2139,13 +2076,15 @@ function fetchLastRecord(continuingBatch = false) {
                 <button type="button" class="btn-remove" onclick="removeInvalidBox(this)">刪除</button>
             </div>
             <div class="form-group" style="margin-bottom: 8px;">
-                <select class="invalidType"><option value="">無</option>
-                        <option value="調機">調機</option>
-                        <option value="架機">架機</option>
-                        <option value="換刀">換刀</option>
-                        <option value="待料">待料</option>
-                        <option value="換批">換批</option>
-                        <option value="其他">其他</option></select>
+                <select class="invalidType">
+                    <option value="">無</option>
+                    <option value="架機">架機</option>
+                    <option value="調機">調機</option>
+                    <option value="換刀">換刀</option>
+                    <option value="待料">待料</option>
+                    <option value="換批">換批</option>
+                    <option value="其他">其他</option>
+                </select>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
                 <input
@@ -2158,7 +2097,6 @@ function fetchLastRecord(continuingBatch = false) {
         `;
 
         container.appendChild(div);
-        configureWorktimeInputs();
         checkAddButtonState();
     }
 
@@ -2656,7 +2594,7 @@ function fetchLastRecord(continuingBatch = false) {
     function generateRequestId() {
         const timestamp = Date.now();
         const random = Math.random().toString(36).substring(2, 10);
-        return 'm30-' + timestamp + '-' + random;
+        return timestamp + '-' + random;
     }
 
 
@@ -2762,11 +2700,13 @@ function fetchLastRecord(continuingBatch = false) {
             const minInput = box.querySelector('.invalidMin').value.trim();
             const min = minInput !== "" ? Number(minInput) : 0;
 
-            const splitInputs = [...box.querySelectorAll(".invalidInside, .invalidOutside")];
-            if (min < 0 || !Number.isSafeInteger(min) || splitInputs.some(input => !Number.isSafeInteger(Number(input.value || 0)) || Number(input.value || 0) < 0)) {
+            if (min < 0) {
                 hasNegativeInvalid = true;
             }
 
+            if (type !== "" && type !== "無" && (minInput === "" || min <= 0)) {
+                hasInvalidConfigError = true;
+            }
 
             if ((!type || type === "無") && min > 0) {
                 hasInvalidConfigError = true;
@@ -2779,14 +2719,13 @@ function fetchLastRecord(continuingBatch = false) {
                     selectedInvalidTypes.add(type);
                 }
 
-                try { invalidItems.push(worktimeSplitForBox(box)); }
-                catch (error) { hasNegativeInvalid = true; return; }
+                invalidItems.push({ type: type, min: min });
                 totalInvalidMinutes += min;
             }
         });
 
         if (hasNegativeInvalid) {
-            alert("❌ 無效工時分鐘數必須為非負整數！");
+            alert("❌ 無效工時分鐘數不可輸入負數！");
             return;
         }
 
@@ -2807,6 +2746,11 @@ function fetchLastRecord(continuingBatch = false) {
         totalInvalidMinutes += routine.cleaning + routine.inspection;
 
         const workingHours = Number(document.getElementById('workingHours').value);
+
+        if (totalInvalidMinutes > workingHours) {
+            alert(`❌ 無效工時合計不可超過應有工時！\n\n應有工時：${workingHours} 分鐘\n無效工時：${totalInvalidMinutes} 分鐘`);
+            return;
+        }
 
         if (qty > 0 && !endTime) {
             alert("❌ 當您填寫了本次完成數量時，結算時間為必填欄位！");
@@ -2886,7 +2830,6 @@ function fetchLastRecord(continuingBatch = false) {
 
         // 封裝表單資料準備送出
         pendingFormData = {
-            reportSchema: 'monthly30',
             requestId: currentRequestId,
             loginToken: lightLoginToken,
             userId: userProfile.userId,
@@ -2932,7 +2875,7 @@ function fetchLastRecord(continuingBatch = false) {
         if (invalidItems.length > 0) {
             html += `<br><b>【無效工時明細】</b><br>`;
             invalidItems.forEach(item => {
-                html += '&nbsp;&nbsp;• ' + item.type + '：' + item.min + ' 分鐘<br>';
+                html += `&nbsp;&nbsp;• ${item.type}：${item.min} 分鐘<br>`;
             });
         }
 
@@ -2941,8 +2884,6 @@ function fetchLastRecord(continuingBatch = false) {
         }
 
         document.getElementById('summaryText').innerHTML = html;
-        document.getElementById('closeShiftReport').checked = false;
-        updateWorktimeConfirmation();
         document.getElementById('confirmModal').style.display = 'flex';
     }
 
@@ -2955,31 +2896,7 @@ function fetchLastRecord(continuingBatch = false) {
     // 實際發送資料至 GAS (從對話框點擊確認後執行)
     // =========================================================
 
-    function updateWorktimeConfirmation() {
-        const data = pendingFormData;
-        const coverage = getShiftCoverage(data.startTime, data.endTime, data.shift, data.workingHours);
-        const close = document.getElementById('closeShiftReport').checked;
-        const ended = coverage && shiftReportDate &&
-            Date.now() >= Date.parse(shiftReportDate + 'T00:00:00+08:00') + coverage.end * 60000;
-        const outside = data.invalidItems.reduce((sum, item) => sum + item.min - insideWorktimeMinutes(item), 0);
-        const remaining = coverage ? Math.max(0, coverage.remaining - outside) : null;
-        const incomplete = coverage && remaining > 0 && (close || ended);
-        const mid = data.shift === '中班';
-        const duration = data.endTime ? parseMinutes(data.endTime, mid) - parseMinutes(data.startTime, mid) : 0;
-        const losses = data.invalidItems.reduce((sum, item) => sum + insideWorktimeMinutes(item), 0);
-        const conflict = losses > duration || losses > data.workingHours;
-        const warnings = [];
-        if (outside > 0) warnings.push('加工區間外目前只有分鐘數，是否重疊仍待確認。');
-        if (incomplete) warnings.push('本班工時尚有 ' + remaining + ' 分鐘待交代，請確認設備後續作業狀況。');
-        if (close && !coverage) warnings.push('目前無法核對本班工時涵蓋進度，仍可送出。');
-        if (conflict) warnings.push('無效工時超過本筆 開始至結算時間 涵蓋時間，請確認開始／結束時間是否包含架機、停機等作業。暫算有效工時 ' + (duration - losses) + ' 分鐘。');
-        document.getElementById('shiftCoverageWarning').textContent = warnings.join(' ');
-        document.getElementById('continueShiftReport').hidden = !incomplete;
-        document.getElementById('sendShiftReport').textContent = incomplete ? '仍要送出' : conflict ? '確認後送出' : '送出';
-    }
-
-    function executeSubmit(continueShift = false) {
-        pendingFormData.closeShift = !continueShift && document.getElementById('closeShiftReport').checked;
+    function executeSubmit() {
         closeConfirmModal();
 
         document.getElementById('requestIdDisplay').textContent = currentRequestId;
@@ -3026,9 +2943,8 @@ function fetchLastRecord(continuingBatch = false) {
             // 先保存本次成功資料，因為 resetFormAfterSubmit() 會清空欄位
             const submittedData = { ...(pendingFormData || {}) };
 
-            resetFormAfterSubmit(submittedData);
+            resetFormAfterSubmit();
             showSuccessBanner(submittedData);
-            if (data && data.warning) alert(data.warning);
         })
         .catch(err => {
             document.getElementById('loading').style.display = 'none';
@@ -3084,25 +3000,22 @@ function fetchLastRecord(continuingBatch = false) {
     // 送出成功後重設表單 (回到機台欄位)
     // =========================================================
 
-    function resetFormAfterSubmit(submittedData) {
+    function resetFormAfterSubmit() {
         document.getElementById('qty').value = '';
         document.getElementById('unitSeconds').value = '';
         document.getElementById('startTime').value = '';
         document.getElementById('endTime').value = '';
         document.getElementById('remark').value = '';
 
-        machineInput.value = submittedData.machine;
+        machineInput.value = '';
         partInput.value = '';
-        selectedMachine = submittedData.machine;
+        selectedMachine = '';
         selectedPart = '';
         isUserTypingPart = false;
         batchLookupRequestSeq++;
         lastRecordRequestSeq++; // 使上一筆機台尚未完成的查詢立即失效，避免舊回應覆蓋下一筆
-        midBatchLookupSeq++;
-        midBatchCandidate = null;
-        midBatchCandidateKey = '';
         resetBatchLink();
-        lastRecordEndTime = submittedData.endTime || null;
+        lastRecordEndTime = null;
         currentRequestId = null;
 
         // 保留目前班別，方便連續回報下一台機台
@@ -3111,8 +3024,7 @@ function fetchLastRecord(continuingBatch = false) {
         // 班別已選定，因此下一筆不重新鎖住輸入欄位
         if (currentShift) {
             unlockFormFields();
-            setWorkingHours(String(submittedData.workingHours));
-            document.getElementById('startTime').value = lastRecordEndTime || '';
+            handleShiftChange();
 
             // 白班下一台先恢復標準預設值；選機台後若有上一筆，
             // fetchLastRecord() 會再用上一筆結算時間覆蓋開始時間。
@@ -3132,13 +3044,15 @@ function fetchLastRecord(continuingBatch = false) {
                     <span>項目 1</span>
                 </div>
                 <div class="form-group" style="margin-bottom: 8px;">
-                    <select class="invalidType" disabled><option value="">無</option>
-                        <option value="調機">調機</option>
+                    <select class="invalidType" disabled>
+                        <option value="">無</option>
                         <option value="架機">架機</option>
+                        <option value="調機">調機</option>
                         <option value="換刀">換刀</option>
                         <option value="待料">待料</option>
                         <option value="換批">換批</option>
-                        <option value="其他">其他</option></select>
+                        <option value="其他">其他</option>
+                    </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
                     <input
@@ -3164,13 +3078,15 @@ function fetchLastRecord(continuingBatch = false) {
                     </button>
                 </div>
                 <div class="form-group" style="margin-bottom: 8px;">
-                    <select class="invalidType" disabled><option value="">無</option>
-                        <option value="調機">調機</option>
+                    <select class="invalidType" disabled>
+                        <option value="">無</option>
                         <option value="架機">架機</option>
+                        <option value="調機">調機</option>
                         <option value="換刀">換刀</option>
                         <option value="待料">待料</option>
                         <option value="換批">換批</option>
-                        <option value="其他">其他</option></select>
+                        <option value="其他">其他</option>
+                    </select>
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
                     <input
@@ -3195,10 +3111,8 @@ function fetchLastRecord(continuingBatch = false) {
             unlockFormFields();
         }
 
-        fetchLastRecord(true);
-        configureWorktimeInputs();
-        partInput.focus();
-        partInput.scrollIntoView({
+        machineInput.focus();
+        machineInput.scrollIntoView({
             behavior: 'smooth',
             block: 'center'
         });
@@ -3208,4 +3122,3 @@ function fetchLastRecord(continuingBatch = false) {
 
 </body>
 </html>
-
