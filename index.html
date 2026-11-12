@@ -784,6 +784,7 @@
 </div>
 
 
+<script src="worktime-details.js"></script>
 <script>
 
     // =========================================================
@@ -1169,6 +1170,7 @@ function checkUserPermission(userId, displayName) {
     }
 
     function updateRoutineMinutes() {
+        configureWorktimeInputs();
         const start = document.getElementById('startTime').value.trim();
         const end = document.getElementById('endTime').value.trim();
         const validTime = value => /^(?:[01]?\d|2[0-3]):[0-5]\d$/.test(value);
@@ -1178,11 +1180,13 @@ function checkUserPermission(userId, displayName) {
             ? parseMinutes(end, shift === '中班') - parseMinutes(start, shift === '中班') : 0;
         const active = duration > 0 && denominator > 0 && Number.isFinite(denominator);
         let otherInvalidMinutes = 0;
+        let insideInvalidMinutes = 0;
         document.querySelectorAll('.invalid-box').forEach(box => {
             const type = box.querySelector('.invalidType').value;
             const minutes = Number(box.querySelector('.invalidMin').value);
             if (['架機', '調機', '換刀', '待料', '換批', '其他'].includes(type) && Number.isFinite(minutes) && minutes > 0) {
                 otherInvalidMinutes += minutes;
+                try { insideInvalidMinutes += worktimeSplitForBox(box).inside; } catch (error) { /* 送出時驗證輸入 */ }
             }
         });
         const cleaningBase = Math.max(0, duration - otherInvalidMinutes);
@@ -1190,9 +1194,14 @@ function checkUserPermission(userId, displayName) {
             ? routineCleaningSummary : { baseMinutes: 0, allocatedMinutes: 0 };
         const cleaningExempt = ['RT-11', 'RT-12', 'PCL-A20-001', 'ARC-05-01']
             .includes(String(selectedMachine || machineInput.value).trim().toUpperCase());
-        const cleaning = active && !cleaningExempt ? Math.max(0,
-            Math.round(20 * Math.min((previous.baseMinutes + cleaningBase) / denominator, 1))
-            - previous.allocatedMinutes) : 0;
+        const previousDurations = routineInspectionKey === routineContextKey() && shiftIntervals
+            ? shiftIntervals.map(([from, to]) => Math.max(0, parseMinutes(to, shift === '中班') - parseMinutes(from, shift === '中班'))) : [];
+        const totalDuration = duration + previousDurations.reduce((sum, minutes) => sum + minutes, 0);
+        const shiftEnd = (shift === '中班' ? 1020 : 480) + denominator;
+        const totalCleaning = end && parseMinutes(end, shift === '中班') === shiftEnd
+            ? 20 : Math.round(20 * Math.min((previous.baseMinutes + cleaningBase) / denominator, 1));
+        const cleaning = active && !cleaningExempt ? Math.max(0, totalCleaning -
+            previousDurations.reduce((sum, minutes) => sum + Math.floor(totalCleaning * minutes / totalDuration), 0)) : 0;
         const alreadyInspected = routineInspectionKey === routineContextKey() && routineInspectionRecorded;
         const inspection = active && shift !== '中班' && !alreadyInspected ? 3 : 0;
         const hint = document.getElementById('effectiveMinutesHint');
@@ -1204,7 +1213,7 @@ function checkUserPermission(userId, displayName) {
                 if (type && type !== '無' && Number.isFinite(minutes) && minutes > 0) totalInvalid += minutes;
             });
             hint.textContent = active
-                ? `自動計算：清潔 ${cleaning} 分鐘、點檢 ${inspection} 分鐘｜F/G 區間 ${duration} 分鐘｜無效工時 ${totalInvalid} 分鐘｜暫算有效工時 ${duration - totalInvalid} 分鐘`
+                ? `自動計算：清潔 ${cleaning} 分鐘、點檢 ${inspection} 分鐘｜開始至結算時間 區間 ${duration} 分鐘｜無效工時 ${totalInvalid} 分鐘｜暫算有效工時 ${duration - cleaning - inspection - insideInvalidMinutes} 分鐘`
                 : '填入完整開始與結算時間後，自動計算清潔與點檢。';
             const coverage = getShiftCoverage(start, end, shift, denominator);
             if (coverage) hint.textContent += '｜本班應有 ' + denominator + ' 分鐘，目前已涵蓋 ' + coverage.covered + ' 分鐘，尚待交代 ' + coverage.remaining + ' 分鐘。';
@@ -1754,7 +1763,7 @@ function checkUserPermission(userId, displayName) {
             if (el) el.disabled = false;
         });
 
-        document.querySelectorAll('.invalidType, .invalidMin, .btn-remove').forEach(el => {
+        document.querySelectorAll('.invalidType, .invalidMin, .invalidInside, .invalidOutside, .btn-remove').forEach(el => {
             el.disabled = false;
         });
     }
@@ -2140,6 +2149,7 @@ function fetchLastRecord(continuingBatch = false) {
         `;
 
         container.appendChild(div);
+        configureWorktimeInputs();
         checkAddButtonState();
     }
 
@@ -2637,7 +2647,7 @@ function fetchLastRecord(continuingBatch = false) {
     function generateRequestId() {
         const timestamp = Date.now();
         const random = Math.random().toString(36).substring(2, 10);
-        return 'wt4-' + timestamp + '-' + random;
+        return 'wt5-' + timestamp + '-' + random;
     }
 
 
@@ -2743,7 +2753,8 @@ function fetchLastRecord(continuingBatch = false) {
             const minInput = box.querySelector('.invalidMin').value.trim();
             const min = minInput !== "" ? Number(minInput) : 0;
 
-            if (min < 0) {
+            const splitInputs = [...box.querySelectorAll(".invalidInside, .invalidOutside")];
+            if (min < 0 || !Number.isSafeInteger(min) || splitInputs.some(input => !Number.isSafeInteger(Number(input.value || 0)) || Number(input.value || 0) < 0)) {
                 hasNegativeInvalid = true;
             }
 
@@ -2762,13 +2773,14 @@ function fetchLastRecord(continuingBatch = false) {
                     selectedInvalidTypes.add(type);
                 }
 
-                invalidItems.push({ type: type, min: min });
+                try { invalidItems.push(worktimeSplitForBox(box)); }
+                catch (error) { hasNegativeInvalid = true; return; }
                 totalInvalidMinutes += min;
             }
         });
 
         if (hasNegativeInvalid) {
-            alert("❌ 無效工時分鐘數不可輸入負數！");
+            alert("❌ 無效工時分鐘數必須為非負整數！");
             return;
         }
 
@@ -2942,15 +2954,18 @@ function fetchLastRecord(continuingBatch = false) {
         const close = document.getElementById('closeShiftReport').checked;
         const ended = coverage && shiftReportDate &&
             Date.now() >= Date.parse(shiftReportDate + 'T00:00:00+08:00') + coverage.end * 60000;
-        const incomplete = coverage && coverage.remaining > 0 && (close || ended);
+        const outside = data.invalidItems.reduce((sum, item) => sum + item.min - insideWorktimeMinutes(item), 0);
+        const remaining = coverage ? Math.max(0, coverage.remaining - outside) : null;
+        const incomplete = coverage && remaining > 0 && (close || ended);
         const mid = data.shift === '中班';
         const duration = data.endTime ? parseMinutes(data.endTime, mid) - parseMinutes(data.startTime, mid) : 0;
-        const losses = data.invalidItems.reduce((sum, item) => sum + item.min, 0);
+        const losses = data.invalidItems.reduce((sum, item) => sum + insideWorktimeMinutes(item), 0);
         const conflict = losses > duration || losses > data.workingHours;
         const warnings = [];
-        if (incomplete) warnings.push('本班工時尚有 ' + coverage.remaining + ' 分鐘待交代，請確認設備後續作業狀況。');
+        if (outside > 0) warnings.push('區間外目前只有分鐘數，是否重疊仍待確認。');
+        if (incomplete) warnings.push('本班工時尚有 ' + remaining + ' 分鐘待交代，請確認設備後續作業狀況。');
         if (close && !coverage) warnings.push('目前無法核對本班工時涵蓋進度，仍可送出。');
-        if (conflict) warnings.push('無效工時超過本筆 F/G 涵蓋時間，請確認開始／結束時間是否包含架機、停機等作業。暫算有效工時 ' + (duration - losses) + ' 分鐘。');
+        if (conflict) warnings.push('無效工時超過本筆 開始至結算時間 涵蓋時間，請確認開始／結束時間是否包含架機、停機等作業。暫算有效工時 ' + (duration - losses) + ' 分鐘。');
         document.getElementById('shiftCoverageWarning').textContent = warnings.join(' ');
         document.getElementById('continueShiftReport').hidden = !incomplete;
         document.getElementById('sendShiftReport').textContent = incomplete ? '仍要送出' : conflict ? '確認後送出' : '送出';
@@ -3177,6 +3192,7 @@ function fetchLastRecord(continuingBatch = false) {
         }
 
         fetchLastRecord(true);
+        configureWorktimeInputs();
         partInput.focus();
         partInput.scrollIntoView({
             behavior: 'smooth',
