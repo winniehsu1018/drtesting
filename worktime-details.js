@@ -7,7 +7,7 @@ function configureWorktimeInputs() {
         if (!panel) {
             panel = document.createElement('div');
             panel.className = 'lossSplit';
-            panel.innerHTML = '<label>歸屬 <select class="lossPlacement"><option value="">請選擇製程中或非製程中</option><option value="inside">製程中</option><option value="outside">非製程中</option><option value="both">兩者都有（分別填寫）</option></select></label><label class="lossInside">製程中分鐘 <input class="invalidInside" type="number" min="0" step="1" placeholder="0"></label><label class="lossOutside">非製程中分鐘 <input class="invalidOutside" type="number" min="0" step="1" placeholder="0"></label>';
+            panel.innerHTML = '<label>歸屬 <select class="lossPlacement"><option value="">請選擇加工區間內／加工區間外</option><option value="inside">加工區間內</option><option value="outside">加工區間外</option><option value="both">兩者都有（分別填寫）</option></select></label><label class="lossInside">加工區間內分鐘 <input class="invalidInside" type="number" min="0" step="1" placeholder="0"></label><label class="lossOutside">加工區間外分鐘 <input class="invalidOutside" type="number" min="0" step="1" placeholder="0"></label>';
             total.parentElement.appendChild(panel);
         }
         if (box.dataset.lossType !== select.value) {
@@ -74,7 +74,7 @@ async function loadEquipmentStatus() {
         const table = document.createElement('table');
         table.style.cssText = 'border-collapse:collapse;width:100%;font-size:13px';
         const header = table.insertRow();
-        ['日期','班別','機台','應有','涵蓋','區間內','區間外','已交代','尚待交代','狀態','補登'].forEach(text => {
+        ['日期','班別','機台','應有','涵蓋','加工區間內','加工區間外','已交代','尚待交代','狀態','補登'].forEach(text => {
             const th = document.createElement('th'); th.textContent = text; header.appendChild(th);
         });
         result.machines.forEach(machine => {
@@ -132,7 +132,7 @@ async function submitWorktimeSupplement(event) {
 window.addEventListener('DOMContentLoaded', () => {
     const section = document.createElement('section');
     section.style.cssText = 'margin:16px auto;max-width:1100px;padding:12px';
-    section.innerHTML = '<h2>機台工時回報狀態</h2><p>使用上方工作日期與班別查詢。區間外只有分鐘而沒有實際時段時，已交代數僅供核對，仍標示待確認。</p><button type="button" id="equipmentStatusButton">查詢機台工時回報狀態</button><div id="equipmentStatusResult" style="overflow-x:auto" aria-live="polite"></div><form id="worktimeSupplement" hidden><h3>純無效工時補登</h3><p id="supplementTarget"></p><p>只新增無效工時明細，不增加完成數量、標準工時、清潔或點檢。</p><div id="supplementLosses"><div class="invalid-box"><select class="invalidType" aria-label="補登項目"><option value="">無</option><option value="其他">其他（請選製程中或非製程中）</option><option value="調機">調機（請選製程中或非製程中）</option><option value="待料">待料（請選製程中或非製程中）</option><option value="換刀">換刀（製程中）</option><option value="換批">換批（製程中）</option><option value="架機">架機（非製程中）</option></select><input class="invalidMin" type="number" min="0" step="1" placeholder="分鐘"></div></div><label>補登備註 <input id="supplementRemark" maxlength="500"></label><button type="submit" id="sendSupplement">新增補登</button></form>';
+    section.innerHTML = '<h2>機台工時回報狀態</h2><p>使用上方工作日期與班別查詢。加工區間外只有分鐘而沒有實際時段時，已交代數僅供核對，仍標示待確認。</p><button type="button" id="equipmentStatusButton">查詢機台工時回報狀態</button><div id="equipmentStatusResult" style="overflow-x:auto" aria-live="polite"></div><form id="worktimeSupplement" hidden><h3>純無效工時補登</h3><p id="supplementTarget"></p><p>只新增無效工時明細，不增加完成數量、標準工時、清潔或點檢。</p><div id="supplementLosses"><div class="invalid-box"><select class="invalidType" aria-label="補登項目"><option value="">無</option><option value="調機">調機（選擇加工區間內／外）</option><option value="架機">架機（加工區間外）</option><option value="換刀">換刀（加工區間內）</option><option value="待料">待料（選擇加工區間內／外）</option><option value="換批">換批（加工區間內）</option><option value="其他">其他（選擇加工區間內／外）</option></select><input class="invalidMin" type="number" min="0" step="1" placeholder="分鐘"></div></div><label>補登備註 <input id="supplementRemark" maxlength="500"></label><button type="submit" id="sendSupplement">新增補登</button></form>';
     document.body.appendChild(section);
     document.getElementById('equipmentStatusButton').addEventListener('click', loadEquipmentStatus);
     document.getElementById('worktimeSupplement').addEventListener('submit', submitWorktimeSupplement);

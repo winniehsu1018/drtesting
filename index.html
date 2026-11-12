@@ -650,15 +650,13 @@
                         <span>項目 1</span>
                     </div>
                     <div class="form-group" style="margin-bottom: 8px;">
-                        <select class="invalidType" disabled>
-                            <option value="">無</option>
-                            <option value="架機">架機（非製程中）</option>
-                            <option value="調機">調機（請選製程中或非製程中）</option>
-                            <option value="換刀">換刀（製程中）</option>
-                            <option value="待料">待料（請選製程中或非製程中）</option>
-                            <option value="換批">換批（製程中）</option>
-                            <option value="其他">其他（請選製程中或非製程中）</option>
-                        </select>
+                        <select class="invalidType" disabled><option value="">無</option>
+                        <option value="調機">調機（選擇加工區間內／外）</option>
+                        <option value="架機">架機（加工區間外）</option>
+                        <option value="換刀">換刀（加工區間內）</option>
+                        <option value="待料">待料（選擇加工區間內／外）</option>
+                        <option value="換批">換批（加工區間內）</option>
+                        <option value="其他">其他（選擇加工區間內／外）</option></select>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <input
@@ -684,15 +682,13 @@
                         </button>
                     </div>
                     <div class="form-group" style="margin-bottom: 8px;">
-                        <select class="invalidType" disabled>
-                            <option value="">無</option>
-                            <option value="架機">架機（非製程中）</option>
-                            <option value="調機">調機（請選製程中或非製程中）</option>
-                            <option value="換刀">換刀（製程中）</option>
-                            <option value="待料">待料（請選製程中或非製程中）</option>
-                            <option value="換批">換批（製程中）</option>
-                            <option value="其他">其他（請選製程中或非製程中）</option>
-                        </select>
+                        <select class="invalidType" disabled><option value="">無</option>
+                        <option value="調機">調機（選擇加工區間內／外）</option>
+                        <option value="架機">架機（加工區間外）</option>
+                        <option value="換刀">換刀（加工區間內）</option>
+                        <option value="待料">待料（選擇加工區間內／外）</option>
+                        <option value="換批">換批（加工區間內）</option>
+                        <option value="其他">其他（選擇加工區間內／外）</option></select>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <input
@@ -2128,15 +2124,13 @@ function fetchLastRecord(continuingBatch = false) {
                 <button type="button" class="btn-remove" onclick="removeInvalidBox(this)">刪除</button>
             </div>
             <div class="form-group" style="margin-bottom: 8px;">
-                <select class="invalidType">
-                    <option value="">無</option>
-                    <option value="架機">架機（非製程中）</option>
-                    <option value="調機">調機（請選製程中或非製程中）</option>
-                    <option value="換刀">換刀（製程中）</option>
-                    <option value="待料">待料（請選製程中或非製程中）</option>
-                    <option value="換批">換批（製程中）</option>
-                    <option value="其他">其他（請選製程中或非製程中）</option>
-                </select>
+                <select class="invalidType"><option value="">無</option>
+                        <option value="調機">調機（選擇加工區間內／外）</option>
+                        <option value="架機">架機（加工區間外）</option>
+                        <option value="換刀">換刀（加工區間內）</option>
+                        <option value="待料">待料（選擇加工區間內／外）</option>
+                        <option value="換批">換批（加工區間內）</option>
+                        <option value="其他">其他（選擇加工區間內／外）</option></select>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
                 <input
@@ -2959,7 +2953,7 @@ function fetchLastRecord(continuingBatch = false) {
         const losses = data.invalidItems.reduce((sum, item) => sum + insideWorktimeMinutes(item), 0);
         const conflict = losses > duration || losses > data.workingHours;
         const warnings = [];
-        if (outside > 0) warnings.push('區間外目前只有分鐘數，是否重疊仍待確認。');
+        if (outside > 0) warnings.push('加工區間外目前只有分鐘數，是否重疊仍待確認。');
         if (incomplete) warnings.push('本班工時尚有 ' + remaining + ' 分鐘待交代，請確認設備後續作業狀況。');
         if (close && !coverage) warnings.push('目前無法核對本班工時涵蓋進度，仍可送出。');
         if (conflict) warnings.push('無效工時超過本筆 開始至結算時間 涵蓋時間，請確認開始／結束時間是否包含架機、停機等作業。暫算有效工時 ' + (duration - losses) + ' 分鐘。');
@@ -3121,15 +3115,13 @@ function fetchLastRecord(continuingBatch = false) {
                     <span>項目 1</span>
                 </div>
                 <div class="form-group" style="margin-bottom: 8px;">
-                    <select class="invalidType" disabled>
-                        <option value="">無</option>
-                        <option value="調機">調機（請選製程中或非製程中）</option>
-                        <option value="架機">架機（非製程中）</option>
-                        <option value="換刀">換刀（製程中）</option>
-                        <option value="待料">待料（請選製程中或非製程中）</option>
-                        <option value="換批">換批（製程中）</option>
-                        <option value="其他">其他（請選製程中或非製程中）</option>
-                    </select>
+                    <select class="invalidType" disabled><option value="">無</option>
+                        <option value="調機">調機（選擇加工區間內／外）</option>
+                        <option value="架機">架機（加工區間外）</option>
+                        <option value="換刀">換刀（加工區間內）</option>
+                        <option value="待料">待料（選擇加工區間內／外）</option>
+                        <option value="換批">換批（加工區間內）</option>
+                        <option value="其他">其他（選擇加工區間內／外）</option></select>
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
                     <input
@@ -3155,15 +3147,13 @@ function fetchLastRecord(continuingBatch = false) {
                     </button>
                 </div>
                 <div class="form-group" style="margin-bottom: 8px;">
-                    <select class="invalidType" disabled>
-                        <option value="">無</option>
-                        <option value="調機">調機（請選製程中或非製程中）</option>
-                        <option value="架機">架機（非製程中）</option>
-                        <option value="換刀">換刀（製程中）</option>
-                        <option value="待料">待料（請選製程中或非製程中）</option>
-                        <option value="換批">換批（製程中）</option>
-                        <option value="其他">其他（請選製程中或非製程中）</option>
-                    </select>
+                    <select class="invalidType" disabled><option value="">無</option>
+                        <option value="調機">調機（選擇加工區間內／外）</option>
+                        <option value="架機">架機（加工區間外）</option>
+                        <option value="換刀">換刀（加工區間內）</option>
+                        <option value="待料">待料（選擇加工區間內／外）</option>
+                        <option value="換批">換批（加工區間內）</option>
+                        <option value="其他">其他（選擇加工區間內／外）</option></select>
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
                     <input
