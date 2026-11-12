@@ -419,6 +419,21 @@
         .light-login-btn:hover { background:#0056b3; }
         .light-login-btn:disabled { background:#cccccc; cursor:not-allowed; }
 
+
+        .equipment-status-table {
+            width: 100%; min-width: 960px; table-layout: fixed;
+            border-collapse: collapse; font-size: 13px;
+            font-variant-numeric: tabular-nums;
+        }
+        .equipment-status-table th, .equipment-status-table td {
+            padding: 10px 8px; text-align: center; vertical-align: middle;
+            border-bottom: 1px solid #d5dce1; box-sizing: border-box;
+            white-space: nowrap;
+        }
+        .equipment-status-table tbody tr { height: 52px; }
+        .equipment-status-table td:nth-child(3) { text-align: left; padding-left: 12px; }
+        .equipment-status-table th { line-height: 1.5; }
+        #equipmentStatusResult { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     </style>
 </head>
 
@@ -651,12 +666,12 @@
                     </div>
                     <div class="form-group" style="margin-bottom: 8px;">
                         <select class="invalidType" disabled><option value="">無</option>
-                        <option value="調機">調機（選擇加工區間內／外）</option>
-                        <option value="架機">架機（加工區間外）</option>
-                        <option value="換刀">換刀（加工區間內）</option>
-                        <option value="待料">待料（選擇加工區間內／外）</option>
-                        <option value="換批">換批（加工區間內）</option>
-                        <option value="其他">其他（選擇加工區間內／外）</option></select>
+                        <option value="調機">調機</option>
+                        <option value="架機">架機</option>
+                        <option value="換刀">換刀</option>
+                        <option value="待料">待料</option>
+                        <option value="換批">換批</option>
+                        <option value="其他">其他</option></select>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <input
@@ -683,12 +698,12 @@
                     </div>
                     <div class="form-group" style="margin-bottom: 8px;">
                         <select class="invalidType" disabled><option value="">無</option>
-                        <option value="調機">調機（選擇加工區間內／外）</option>
-                        <option value="架機">架機（加工區間外）</option>
-                        <option value="換刀">換刀（加工區間內）</option>
-                        <option value="待料">待料（選擇加工區間內／外）</option>
-                        <option value="換批">換批（加工區間內）</option>
-                        <option value="其他">其他（選擇加工區間內／外）</option></select>
+                        <option value="調機">調機</option>
+                        <option value="架機">架機</option>
+                        <option value="換刀">換刀</option>
+                        <option value="待料">待料</option>
+                        <option value="換批">換批</option>
+                        <option value="其他">其他</option></select>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <input
@@ -2125,12 +2140,12 @@ function fetchLastRecord(continuingBatch = false) {
             </div>
             <div class="form-group" style="margin-bottom: 8px;">
                 <select class="invalidType"><option value="">無</option>
-                        <option value="調機">調機（選擇加工區間內／外）</option>
-                        <option value="架機">架機（加工區間外）</option>
-                        <option value="換刀">換刀（加工區間內）</option>
-                        <option value="待料">待料（選擇加工區間內／外）</option>
-                        <option value="換批">換批（加工區間內）</option>
-                        <option value="其他">其他（選擇加工區間內／外）</option></select>
+                        <option value="調機">調機</option>
+                        <option value="架機">架機</option>
+                        <option value="換刀">換刀</option>
+                        <option value="待料">待料</option>
+                        <option value="換批">換批</option>
+                        <option value="其他">其他</option></select>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
                 <input
@@ -3118,12 +3133,12 @@ function fetchLastRecord(continuingBatch = false) {
                 </div>
                 <div class="form-group" style="margin-bottom: 8px;">
                     <select class="invalidType" disabled><option value="">無</option>
-                        <option value="調機">調機（選擇加工區間內／外）</option>
-                        <option value="架機">架機（加工區間外）</option>
-                        <option value="換刀">換刀（加工區間內）</option>
-                        <option value="待料">待料（選擇加工區間內／外）</option>
-                        <option value="換批">換批（加工區間內）</option>
-                        <option value="其他">其他（選擇加工區間內／外）</option></select>
+                        <option value="調機">調機</option>
+                        <option value="架機">架機</option>
+                        <option value="換刀">換刀</option>
+                        <option value="待料">待料</option>
+                        <option value="換批">換批</option>
+                        <option value="其他">其他</option></select>
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
                     <input
@@ -3150,12 +3165,12 @@ function fetchLastRecord(continuingBatch = false) {
                 </div>
                 <div class="form-group" style="margin-bottom: 8px;">
                     <select class="invalidType" disabled><option value="">無</option>
-                        <option value="調機">調機（選擇加工區間內／外）</option>
-                        <option value="架機">架機（加工區間外）</option>
-                        <option value="換刀">換刀（加工區間內）</option>
-                        <option value="待料">待料（選擇加工區間內／外）</option>
-                        <option value="換批">換批（加工區間內）</option>
-                        <option value="其他">其他（選擇加工區間內／外）</option></select>
+                        <option value="調機">調機</option>
+                        <option value="架機">架機</option>
+                        <option value="換刀">換刀</option>
+                        <option value="待料">待料</option>
+                        <option value="換批">換批</option>
+                        <option value="其他">其他</option></select>
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
                     <input

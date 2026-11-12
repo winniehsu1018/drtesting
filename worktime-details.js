@@ -57,8 +57,6 @@ function insideWorktimeMinutes(item) {
     return item.type === '架機' ? 0 : Number(item.min || 0);
 }
 
-let supplementRequestId = null;
-let supplementTarget = null;
 async function loadEquipmentStatus() {
     const output = document.getElementById('equipmentStatusResult');
     output.textContent = '讀取中…';
@@ -72,71 +70,36 @@ async function loadEquipmentStatus() {
         if (!result.success) throw new Error(result.needLogin ? '請先登入。' : result.error || '無法取得狀態。');
         output.replaceChildren();
         const table = document.createElement('table');
-        table.style.cssText = 'border-collapse:collapse;width:100%;font-size:13px';
-        const header = table.insertRow();
-        ['日期','班別','機台','應有','涵蓋','加工區間內','加工區間外','已交代','尚待交代','狀態','補登'].forEach(text => {
-            const th = document.createElement('th'); th.textContent = text; header.appendChild(th);
+        table.className = 'equipment-status-table';
+        const columns = document.createElement('colgroup');
+        [11,6,15,6,6,10,10,8,9,19].forEach(width => {
+            const col = document.createElement('col'); col.style.width = width + '%'; columns.appendChild(col);
+        });
+        table.appendChild(columns);
+        const head = table.createTHead();
+        const body = table.createTBody();
+        const header = head.insertRow();
+        ['日期','班別','機台','應有','涵蓋','加工區間內','加工區間外','已交代','尚待交代','狀態'].forEach(text => {
+            const th = document.createElement('th'); th.textContent = text; th.scope = 'col'; header.appendChild(th);
         });
         result.machines.forEach(machine => {
-            const row = table.insertRow();
+            const row = body.insertRow();
             row.style.background = {green:'#e4f4e5',yellow:'#fff3cd',red:'#f9d6d5',gray:'#eceff1'}[machine.color];
             [machine.date,machine.shift,machine.machine,machine.hours,machine.covered,machine.inside,
                 machine.outside,machine.accounted,machine.remaining,machine.status].forEach(value => {
                 const cell = row.insertCell(); cell.textContent = value === null ? '待確認' : value;
             });
-            const cell = row.insertCell();
-            machine.reports.forEach(report => {
-                const button = document.createElement('button');
-                button.type = 'button'; button.textContent = report.start + '～' + report.end + ' 補登';
-                button.addEventListener('click', () => {
-                    supplementTarget = { ...report, date: machine.date, machine: machine.machine };
-                    supplementRequestId = null;
-                    document.getElementById('worktimeSupplement').reset();
-                    document.getElementById('supplementTarget').textContent = machine.machine + ' ' + report.start + '～' + report.end;
-                    document.getElementById('worktimeSupplement').hidden = false;
-                });
-                cell.appendChild(button);
-            });
+
         });
         output.appendChild(table);
     } catch (error) { output.textContent = error.message; }
 }
 
-async function submitWorktimeSupplement(event) {
-    event.preventDefault();
-    const button = document.getElementById('sendSupplement');
-    try {
-        configureWorktimeInputs();
-        if (!supplementTarget) throw new Error('請先從狀態表選擇新版日報。');
-        const items = [...document.querySelectorAll('#supplementLosses .invalid-box')]
-            .map(worktimeSplitForBox).filter(item => item.min > 0);
-        if (!items.length) throw new Error('請填寫補登分鐘。');
-        if (!supplementRequestId) supplementRequestId = generateRequestId();
-        button.disabled = true;
-        const result = await (await fetch(GAS_WEB_APP_URL, {
-            method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-            body:JSON.stringify({action:'supplementWorktime',reportSchema:'monthly30',requestId:supplementRequestId,
-                targetRequestId:supplementTarget.requestId,date:supplementTarget.date,
-                loginToken:lightLoginToken,invalidItems:items,
-                remark:document.getElementById('supplementRemark').value})
-        })).json();
-        if (!result.success) throw new Error(result.message || '補登失敗，請保留識別碼後重試。');
-        alert(result.message);
-        supplementRequestId = null;
-        document.getElementById('worktimeSupplement').hidden = true;
-        loadEquipmentStatus();
-    } catch (error) { alert(error.message); }
-    finally { button.disabled = false; }
-}
-
 window.addEventListener('DOMContentLoaded', () => {
     const section = document.createElement('section');
     section.style.cssText = 'margin:16px auto;max-width:1100px;padding:12px';
-    section.innerHTML = '<h2>機台工時回報狀態</h2><p>使用上方工作日期與班別查詢。加工區間外只有分鐘而沒有實際時段時，已交代數僅供核對，仍標示待確認。</p><button type="button" id="equipmentStatusButton">查詢機台工時回報狀態</button><div id="equipmentStatusResult" style="overflow-x:auto" aria-live="polite"></div><form id="worktimeSupplement" hidden><h3>純無效工時補登</h3><p id="supplementTarget"></p><p>只新增無效工時明細，不增加完成數量、標準工時、清潔或點檢。</p><div id="supplementLosses"><div class="invalid-box"><select class="invalidType" aria-label="補登項目"><option value="">無</option><option value="調機">調機（選擇加工區間內／外）</option><option value="架機">架機（加工區間外）</option><option value="換刀">換刀（加工區間內）</option><option value="待料">待料（選擇加工區間內／外）</option><option value="換批">換批（加工區間內）</option><option value="其他">其他（選擇加工區間內／外）</option></select><input class="invalidMin" type="number" min="0" step="1" placeholder="分鐘"></div></div><label>補登備註 <input id="supplementRemark" maxlength="500"></label><button type="submit" id="sendSupplement">新增補登</button></form>';
+    section.innerHTML = '<h2>機台工時回報狀態</h2><p>使用上方工作日期與班別查詢。加工區間外只有分鐘而沒有實際時段時，已交代數僅供核對，仍標示待確認。</p><button type="button" id="equipmentStatusButton">查詢機台工時回報狀態</button><div id="equipmentStatusResult" style="overflow-x:auto" aria-live="polite"></div>';
     document.body.appendChild(section);
     document.getElementById('equipmentStatusButton').addEventListener('click', loadEquipmentStatus);
-    document.getElementById('worktimeSupplement').addEventListener('submit', submitWorktimeSupplement);
-    document.getElementById('supplementLosses').addEventListener('change', configureWorktimeInputs);
-    document.getElementById('supplementLosses').addEventListener('input', configureWorktimeInputs);
     configureWorktimeInputs();
 });
