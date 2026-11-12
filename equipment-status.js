@@ -18,7 +18,15 @@ function showEquipmentTab(query) {
         allMachines.forEach(machine => {
             const option = document.createElement('option'); option.value = machine; list.appendChild(option);
         });
+        alignEquipmentRows();
     }
+}
+
+function alignEquipmentRows() {
+    const rows = [...document.querySelectorAll('#equipmentStatusResult tbody tr')];
+    rows.forEach(row => row.style.height = '');
+    const height = Math.ceil(Math.max(52, ...rows.map(row => row.getBoundingClientRect().height)));
+    rows.forEach(row => row.style.height = height + 'px');
 }
 
 function updateEquipmentMonth() {
@@ -58,30 +66,32 @@ async function loadEquipmentStatus(event) {
         const table = document.createElement('table');
         table.className = 'equipment-status-table';
         const columns = document.createElement('colgroup');
-        [7,4,9,6,7,7,4,4,4,4,4,4,4,4,10,18].forEach(width => {
-            const col = document.createElement('col'); col.style.width = width + '%'; columns.appendChild(col);
+        [115,65,125,95,105,105,75,75,75,75,75,75,75,75,180].forEach(width => {
+            const col = document.createElement('col'); col.style.width = width + 'px'; columns.appendChild(col);
         });
         table.appendChild(columns);
         const header = table.createTHead().insertRow();
-        ['日期','班別','機台','應有工時','已回報工時','未回報工時','架機','調機','換刀','待料','換批','其他','清潔','點檢','狀態','備註'].forEach(text => {
+        ['日期','班別','機台','應有工時','已回報工時','未回報工時','架機','調機','換刀','待料','換批','其他','清潔','點檢','備註'].forEach(text => {
             const th = document.createElement('th'); th.textContent = text; th.scope = 'col'; header.appendChild(th);
         });
         const body = table.createTBody();
         result.machines.forEach(machine => {
             const row = body.insertRow();
-            row.style.background = {green:'#e4f4e5',yellow:'#fff3cd',red:'#f9d6d5',gray:'#eceff1'}[machine.color];
-            [machine.date,machine.shift,machine.machine,machine.hours,machine.reported,machine.unreported,
-                ...['架機','調機','換刀','待料','換批','其他','清潔','點檢'].map(type => machine.losses[type]),machine.status].forEach(value => {
-                const cell = row.insertCell(); cell.textContent = value === null ? '待確認' : value;
+            const hasReports = machine.notes.length > 0;
+            [machine.date,machine.shift,machine.machine,hasReports ? machine.hours : 0,hasReports ? machine.reported : 0,hasReports ? machine.unreported : 0,
+                ...['架機','調機','換刀','待料','換批','其他','清潔','點檢'].map(type => hasReports ? machine.losses[type] : 0)].forEach(value => {
+                const cell = row.insertCell(); cell.textContent = value === null ? '—' : value;
             });
             const notes = row.insertCell();
             machine.notes.forEach((note,index) => {
                 const line = document.createElement('p');
-                line.textContent = (index + 1) + '. ' + (note.start ? note.start + '～' + note.end + ' ' : '') + (note.text || '（無備註）');
+                line.textContent = (index + 1) + '. ' + (note.part ? note.part + '｜' : '') + (note.start ? note.start + '～' + note.end + ' ' : '') + (note.text || '—');
                 notes.appendChild(line);
             });
+            if (!hasReports) notes.textContent = '—';
         });
         output.appendChild(table);
+        alignEquipmentRows();
         if (!result.machines.length) output.textContent = '當月所選條件尚無回報紀錄。';
     } catch (error) { output.textContent = error.message; }
     finally { button.disabled = false; }
