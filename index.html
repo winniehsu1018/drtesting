@@ -2758,9 +2758,6 @@ function fetchLastRecord(continuingBatch = false) {
                 hasNegativeInvalid = true;
             }
 
-            if (type !== "" && type !== "無" && (minInput === "" || min <= 0)) {
-                hasInvalidConfigError = true;
-            }
 
             if ((!type || type === "無") && min > 0) {
                 hasInvalidConfigError = true;
