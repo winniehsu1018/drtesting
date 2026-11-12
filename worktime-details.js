@@ -115,7 +115,7 @@ async function submitWorktimeSupplement(event) {
         button.disabled = true;
         const result = await (await fetch(GAS_WEB_APP_URL, {
             method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-            body:JSON.stringify({action:'supplementWorktime',requestId:supplementRequestId,
+            body:JSON.stringify({action:'supplementWorktime',reportSchema:'monthly30',requestId:supplementRequestId,
                 targetRequestId:supplementTarget.requestId,date:supplementTarget.date,
                 loginToken:lightLoginToken,invalidItems:items,
                 remark:document.getElementById('supplementRemark').value})

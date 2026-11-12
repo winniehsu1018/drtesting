@@ -2641,7 +2641,7 @@ function fetchLastRecord(continuingBatch = false) {
     function generateRequestId() {
         const timestamp = Date.now();
         const random = Math.random().toString(36).substring(2, 10);
-        return 'wt5-' + timestamp + '-' + random;
+        return 'm30-' + timestamp + '-' + random;
     }
 
 
@@ -2871,6 +2871,7 @@ function fetchLastRecord(continuingBatch = false) {
 
         // 封裝表單資料準備送出
         pendingFormData = {
+            reportSchema: 'monthly30',
             requestId: currentRequestId,
             loginToken: lightLoginToken,
             userId: userProfile.userId,
@@ -3012,6 +3013,7 @@ function fetchLastRecord(continuingBatch = false) {
 
             resetFormAfterSubmit(submittedData);
             showSuccessBanner(submittedData);
+            if (data && data.warning) alert(data.warning);
         })
         .catch(err => {
             document.getElementById('loading').style.display = 'none';
