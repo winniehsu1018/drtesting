@@ -120,31 +120,28 @@ async function loadEquipmentStatus(event) {
         const table = document.createElement('table');
         table.className = 'equipment-status-table';
         const columns = document.createElement('colgroup');
-        [115,65,125,95,105,105,75,75,75,75,75,75,75,75,180].forEach(width => {
+        [115,65,125,160,160,130,140,130,140,140,75,75,75,75,75,75,240].forEach(width => {
             const col = document.createElement('col'); col.style.width = width + 'px'; columns.appendChild(col);
         });
         table.appendChild(columns);
         const header = table.createTHead().insertRow();
-        ['日期','班別','機台','應有工時','已回報工時','未回報工時','架機','調機','換刀','待料','換批','其他','清潔','點檢','備註'].forEach(text => {
+        ['日期','班別','機台','產品料號','生產批次號','完成數量（pcs）','單件工時（秒／件）','應有工時（分鐘）','已回報工時（分鐘）','未回報工時（分鐘）','架機','調機','換刀','待料','換批','其他','備註'].forEach(text => {
             const th = document.createElement('th'); th.textContent = text; th.scope = 'col'; header.appendChild(th);
         });
         const body = table.createTBody();
         [...result.machines].sort((a,b) => a.date.localeCompare(b.date) ||
             (['白班','中班'].indexOf(a.shift) - ['白班','中班'].indexOf(b.shift)) ||
             compareEquipmentMachines(a.machine,b.machine)).forEach(machine => {
-            const row = body.insertRow();
-            const hasReports = machine.notes.length > 0;
-            [machine.date,machine.shift,machine.machine,hasReports ? machine.hours : 0,hasReports ? machine.reported : 0,hasReports ? machine.unreported : 0,
-                ...['架機','調機','換刀','待料','換批','其他','清潔','點檢'].map(type => hasReports ? machine.losses[type] : 0)].forEach(value => {
-                const cell = row.insertCell(); cell.textContent = value === null ? '—' : value;
+            (machine.records.length ? machine.records : [null]).forEach(record => {
+                const row = body.insertRow();
+                [machine.date,machine.shift,machine.machine,record?.part || '—',record?.batchNo || '—',
+                    record ? record.quantity : 0,record ? record.unitSeconds : 0,record ? machine.hours : 0,
+                    record ? record.reported : 0,record ? machine.unreported : 0,
+                    ...['架機','調機','換刀','待料','換批','其他'].map(type => record ? record.losses[type] : 0),record?.remark || '—'].forEach((value,index) => {
+                    const cell = row.insertCell(); cell.textContent = value === null || value === undefined || value === '' ? '—' : value;
+                    if (index === 9 && record && machine.hasValidReport && machine.unreported > 0) cell.classList.add('equipment-unreported-gap');
+                });
             });
-            const notes = row.insertCell();
-            machine.notes.forEach((note,index) => {
-                const line = document.createElement('p');
-                line.textContent = (index + 1) + '. ' + (note.part ? note.part + '｜' : '') + (note.start ? note.start + '～' + note.end + ' ' : '') + (note.text || '—');
-                notes.appendChild(line);
-            });
-            if (!hasReports) notes.textContent = '—';
         });
         output.appendChild(table);
         alignEquipmentRows();
