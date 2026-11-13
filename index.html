@@ -440,6 +440,9 @@
         .equipment-status-table tbody tr:nth-child(odd) { background:#EAF1F8; }
         .equipment-status-table tbody tr:nth-child(even) { background:#FFFFFF; }
         .equipment-status-table tbody td { background:transparent; }
+        .equipment-status-table th:nth-child(n+11):nth-child(-n+16), .equipment-status-table td:nth-child(n+11):nth-child(-n+16) { text-align:center; border-left:1px solid #DDE3EA; }
+        .equipment-status-table th:nth-child(11), .equipment-status-table td:nth-child(11) { border-left:2px solid #BCC8D4; }
+        .equipment-status-table th:nth-child(16), .equipment-status-table td:nth-child(16) { border-right:1px solid #DDE3EA; }
         .equipment-status-table tbody td.equipment-unreported-gap { background:#FCE8E6; color:#B42318; font-weight:bold; }
         .equipment-status-table td:nth-child(4), .equipment-status-table td:nth-child(5) { text-align:left; white-space:normal; overflow-wrap:anywhere; }
         .equipment-status-table td:nth-child(3) { text-align:left; }
@@ -3208,6 +3211,6 @@ function fetchLastRecord() {
 
 </script>
 
-<script src="equipment-status.js?v=9"></script>
+<script src="equipment-status.js?v=10"></script>
 </body>
 </html>

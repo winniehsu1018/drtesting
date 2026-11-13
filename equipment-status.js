@@ -111,7 +111,7 @@ async function loadEquipmentStatus(event) {
         output.replaceChildren();
         const table = document.createElement('table');
         table.className = 'equipment-status-table';
-        const columnWidths = [90,48,100,140,145,85,85,85,85,85,48,48,48,48,48,48,150];
+        const columnWidths = [90,48,100,140,145,85,85,85,85,85,65,65,65,65,65,65,150];
         // 欄位與整表共用一個來源，避免舊 CSS 的最小寬度重新分攤空間。
         table.style.width = table.style.minWidth = columnWidths.reduce((sum,width) => sum + width,0) + 'px';
         const columns = document.createElement('colgroup');
