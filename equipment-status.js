@@ -120,7 +120,7 @@ async function loadEquipmentStatus(event) {
         const table = document.createElement('table');
         table.className = 'equipment-status-table';
         const columns = document.createElement('colgroup');
-        [115,65,125,160,160,130,140,130,140,140,75,75,75,75,75,75,240].forEach(width => {
+        [105,60,115,165,160,105,105,95,105,105,65,65,65,65,65,65,180].forEach(width => {
             const col = document.createElement('col'); col.style.width = width + 'px'; columns.appendChild(col);
         });
         table.appendChild(columns);
