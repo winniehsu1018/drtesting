@@ -762,6 +762,8 @@
             </button>
 
             <div id="effectiveMinutesHint" class="time-hint" aria-live="polite"></div>
+            <div id="remainingInvalidMinutes" class="time-hint" aria-live="polite"></div>
+            <div id="invalidBudgetWarning" style="color:#B42318;font-weight:bold" role="status" aria-live="polite"></div>
 
             <!-- 備註 -->
             <div
@@ -1223,6 +1225,17 @@ function checkUserPermission(userId, displayName) {
 
     const ROUTINE_CLEANING_EXCLUDED_MACHINES = new Set(['RT-11', 'RT-12', 'PCL-A20-001', 'ARC-05-01']);
 
+function manualWorktimeBudget(duration, shiftMinutes, cleaning, inspection, manualMinutes) {
+  const limit = Math.min(duration, shiftMinutes) - cleaning - inspection;
+  const remaining = limit - manualMinutes;
+  const automatic = [['清潔', cleaning], ['點檢', inspection]].filter(item => item[1] > 0)
+    .map(item => item[0] + ' ' + item[1] + ' 分鐘').join('、');
+  const scope = duration < shiftMinutes ? '本筆' : '本班';
+  const message = limit < 0 ? '系統自動計入的清潔及點檢超過本筆回報時間，請確認開始及結算時間。'
+    : (automatic ? '系統已自動計入' + automatic + '，' : '') + scope + '可填報的其他無效工時最多為 ' + limit + ' 分鐘。';
+  return {limit, remaining, exceeded:remaining < 0, message};
+}
+
     function updateRoutineMinutes() {
         const start = document.getElementById('startTime').value.trim();
         const end = document.getElementById('endTime').value.trim();
@@ -1261,7 +1274,11 @@ function checkUserPermission(userId, displayName) {
                 ? `自動計算：清潔 ${cleaning} 分鐘、點檢 ${inspection} 分鐘｜生產區間 ${duration} 分鐘｜無效工時 ${totalInvalid} 分鐘｜有效工時 ${duration - totalInvalid} 分鐘`
                 : '填入完整開始與結算時間後，自動計算清潔、點檢與有效工時。';
         }
-        return { cleaning, inspection };
+        const budget = manualWorktimeBudget(duration, denominator, cleaning, inspection, otherInvalidMinutes);
+        document.getElementById('remainingInvalidMinutes').textContent = active ? '剩餘可填工時：' + budget.remaining + ' 分鐘' : '剩餘可填工時：請先填寫完整時間';
+        document.getElementById('invalidBudgetWarning').textContent = active && budget.exceeded ? budget.message : '';
+        document.querySelectorAll('#invalidContainer .invalidMin').forEach(input => input.setCustomValidity(active && budget.exceeded ? budget.message : ''));
+        return { cleaning, inspection, budget: {...budget, exceeded:active && budget.exceeded} };
     }
 
     function setDefaultInvalidItems() {
@@ -2833,6 +2850,7 @@ function fetchLastRecord() {
 
         // 清潔與點檢由系統產生，員工只填其他無效工時。
         const routine = updateRoutineMinutes();
+        if (routine.budget.exceeded) { alert(routine.budget.message); return; }
         if (routine.cleaning > 0) invalidItems.push({ type: '清潔', min: routine.cleaning });
         if (routine.inspection > 0) invalidItems.push({ type: '點檢', min: routine.inspection });
         totalInvalidMinutes += routine.cleaning + routine.inspection;
@@ -2989,6 +3007,8 @@ function fetchLastRecord() {
     // =========================================================
 
     function executeSubmit() {
+        const routine = updateRoutineMinutes();
+        if (routine.budget.exceeded) { alert(routine.budget.message); return; }
         closeConfirmModal();
 
         document.getElementById('requestIdDisplay').textContent = currentRequestId;
