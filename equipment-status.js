@@ -133,7 +133,9 @@ async function loadEquipmentStatus(event) {
                     record ? record.quantity : 0,record ? record.unitSeconds : 0,record ? machine.hours : 0,
                     record ? record.reported : 0,record ? machine.unreported : 0,
                     ...['架機','調機','換刀','待料','換批','其他'].map(type => record ? record.losses[type] : 0),record?.remark || '—'].forEach((value,index) => {
-                    const cell = row.insertCell(); cell.textContent = value === null || value === undefined || value === '' ? '—' : value;
+                    const cell = row.insertCell();
+                    const zeroLoss = index >= 10 && index <= 15 && value != null && String(value).trim() !== '' && Number(value) === 0;
+                    cell.textContent = zeroLoss ? '' : value === null || value === undefined || value === '' ? '—' : value;
                     if (index === 9 && record && machine.hasValidReport && machine.unreported > 0) cell.classList.add('equipment-unreported-gap');
                 });
             });
