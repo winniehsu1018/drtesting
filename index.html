@@ -433,16 +433,16 @@
         .equipment-filters .equipment-machine-option:hover, .equipment-filters .equipment-machine-option[aria-selected="true"] { background:#edf5ff; color:#0056b3; }
         .equipment-machine-options p { padding:8px 12px; margin:0; font-size:14px; color:#666; }
         #equipmentStatusResult { width:100%; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
-        .equipment-status-table { width:1690px; min-width:1690px; table-layout:fixed; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
-        .equipment-status-table th, .equipment-status-table td { padding:10px 6px; text-align:center; vertical-align:middle; border-bottom:1px solid #d5dce1; white-space:nowrap; box-sizing:border-box; }
-        .equipment-status-table tbody tr { height:52px; }
+        .equipment-status-table { table-layout:fixed; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+        .equipment-status-table th, .equipment-status-table td { padding:6px 4px; line-height:1.4; text-align:center; vertical-align:middle; border-bottom:1px solid #d5dce1; white-space:nowrap; box-sizing:border-box; }
+        .equipment-status-table tbody tr { height:44px; }
         .equipment-status-table thead th { background:#FFFFFF; white-space:normal; overflow-wrap:break-word; line-height:1.4; }
         .equipment-status-table tbody tr:nth-child(odd) { background:#EAF1F8; }
         .equipment-status-table tbody tr:nth-child(even) { background:#FFFFFF; }
         .equipment-status-table tbody td { background:transparent; }
         .equipment-status-table tbody td.equipment-unreported-gap { background:#FCE8E6; color:#B42318; font-weight:bold; }
         .equipment-status-table td:nth-child(4), .equipment-status-table td:nth-child(5) { text-align:left; white-space:normal; overflow-wrap:anywhere; }
-        .equipment-status-table td:nth-child(3) { text-align:left; padding-left:8px; }
+        .equipment-status-table td:nth-child(3) { text-align:left; }
         .equipment-status-table td:last-child { text-align:left; white-space:pre-wrap; overflow-wrap:anywhere; }
         .equipment-status-table td:last-child p { margin:4px 0; }
         @media (max-width:600px) {
@@ -3208,6 +3208,6 @@ function fetchLastRecord() {
 
 </script>
 
-<script src="equipment-status.js?v=7"></script>
+<script src="equipment-status.js?v=8"></script>
 </body>
 </html>

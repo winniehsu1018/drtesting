@@ -14,7 +14,6 @@ function showEquipmentTab(query) {
     if (query) {
         updateEquipmentMonth();
         closeEquipmentMachines();
-        alignEquipmentRows();
     }
 }
 
@@ -76,13 +75,6 @@ function equipmentMachineFilter() {
     throw new Error('請從搜尋結果選擇機台，或選擇全部機台。');
 }
 
-function alignEquipmentRows() {
-    const rows = [...document.querySelectorAll('#equipmentStatusResult tbody tr')];
-    rows.forEach(row => row.style.height = '');
-    const height = Math.ceil(Math.max(52, ...rows.map(row => row.getBoundingClientRect().height)));
-    rows.forEach(row => row.style.height = height + 'px');
-}
-
 function updateEquipmentMonth() {
     const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'})
         .formatToParts(new Date()).map(part => [part.type,part.value]));
@@ -119,8 +111,11 @@ async function loadEquipmentStatus(event) {
         output.replaceChildren();
         const table = document.createElement('table');
         table.className = 'equipment-status-table';
+        const columnWidths = [90,48,100,140,145,85,85,85,85,85,48,48,48,48,48,48,150];
+        // 欄位與整表共用一個來源，避免舊 CSS 的最小寬度重新分攤空間。
+        table.style.width = table.style.minWidth = columnWidths.reduce((sum,width) => sum + width,0) + 'px';
         const columns = document.createElement('colgroup');
-        [105,60,115,165,160,105,105,95,105,105,65,65,65,65,65,65,180].forEach(width => {
+        columnWidths.forEach(width => {
             const col = document.createElement('col'); col.style.width = width + 'px'; columns.appendChild(col);
         });
         table.appendChild(columns);
@@ -144,7 +139,6 @@ async function loadEquipmentStatus(event) {
             });
         });
         output.appendChild(table);
-        alignEquipmentRows();
         if (!result.machines.length) output.textContent = '當月所選條件尚無回報紀錄。';
     } catch (error) { output.textContent = error.message; }
     finally { button.disabled = false; }
